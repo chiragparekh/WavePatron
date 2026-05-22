@@ -20,23 +20,25 @@ class ProcessUploadMetadata implements ShouldQueue
     use Queueable;
 
     public function __construct(
-        public Upload $upload,
+        public string $uploadUuid,
     ) {}
 
     public function handle(): void
     {
-        Log::info('Starting upload metadata extraction.', $this->logContext());
+        $upload = $this->resolveUpload();
 
-        $this->markStepProcessing($this->upload);
+        Log::info('Starting upload metadata extraction.', $this->logContext($upload));
 
-        $url = Storage::disk($this->upload->disk)->temporaryUrl(
-            $this->upload->path,
+        $this->markStepProcessing($upload);
+
+        $url = Storage::disk($upload->disk)->temporaryUrl(
+            $upload->path,
             now()->addMinutes(10),
         );
 
-        Log::debug('Running ffprobe for upload metadata.', $this->logContext([
-            'disk' => $this->upload->disk,
-            'path' => $this->upload->path,
+        Log::debug('Running ffprobe for upload metadata.', $this->logContext($upload, [
+            'disk' => $upload->disk,
+            'path' => $upload->path,
         ]));
 
         $result = Process::run([
@@ -49,7 +51,7 @@ class ProcessUploadMetadata implements ShouldQueue
         ]);
 
         if (! $result->successful()) {
-            Log::error('ffprobe failed to extract upload metadata.', $this->logContext([
+            Log::error('ffprobe failed to extract upload metadata.', $this->logContext($upload, [
                 'exit_code' => $result->exitCode(),
                 'error_output' => $result->errorOutput(),
             ]));
@@ -60,7 +62,7 @@ class ProcessUploadMetadata implements ShouldQueue
         $probe = json_decode($result->output(), true);
 
         if (! is_array($probe)) {
-            Log::error('ffprobe returned invalid JSON for upload metadata.', $this->logContext([
+            Log::error('ffprobe returned invalid JSON for upload metadata.', $this->logContext($upload, [
                 'output' => $result->output(),
             ]));
 
@@ -71,7 +73,7 @@ class ProcessUploadMetadata implements ShouldQueue
             ->first(fn (array $stream): bool => ($stream['codec_type'] ?? null) === 'audio');
 
         if ($audioStream === null) {
-            Log::error('No audio stream found in uploaded file.', $this->logContext([
+            Log::error('No audio stream found in uploaded file.', $this->logContext($upload, [
                 'stream_count' => count($probe['streams'] ?? []),
             ]));
 
@@ -84,7 +86,7 @@ class ProcessUploadMetadata implements ShouldQueue
             ->first(fn (array $stream): bool => ($stream['disposition']['attached_pic'] ?? 0) == 1);
 
         $metadata = UploadMetadata::query()->updateOrCreate(
-            ['upload_id' => $this->upload->id],
+            ['upload_id' => $upload->id],
             [
                 'duration_seconds' => isset($format['duration']) ? (float) $format['duration'] : null,
                 'duration' => isset($format['duration']) ? $this->formatDuration((float) $format['duration']) : null,
@@ -112,9 +114,9 @@ class ProcessUploadMetadata implements ShouldQueue
             ],
         );
 
-        $this->markStepCompleted($this->upload);
+        $this->markStepCompleted($upload);
 
-        Log::info('Upload metadata extraction completed.', $this->logContext([
+        Log::info('Upload metadata extraction completed.', $this->logContext($upload, [
             'metadata_id' => $metadata->id,
             'duration_seconds' => $metadata->duration_seconds,
             'codec' => $metadata->codec,
@@ -125,11 +127,13 @@ class ProcessUploadMetadata implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
-        Log::error('Upload metadata extraction failed.', $this->logContext([
+        $upload = $this->resolveUpload();
+
+        Log::error('Upload metadata extraction failed.', $this->logContext($upload, [
             'exception' => $exception?->getMessage(),
         ]));
 
-        $this->markStepFailed($this->upload);
+        $this->markStepFailed($upload);
     }
 
     protected function uploadStep(): UploadStep
@@ -179,12 +183,12 @@ class ProcessUploadMetadata implements ShouldQueue
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>
      */
-    protected function logContext(array $context = []): array
+    protected function logContext(Upload $upload, array $context = []): array
     {
         return array_merge([
-            'upload_id' => $this->upload->id,
-            'upload_uuid' => $this->upload->uuid,
-            'user_id' => $this->upload->user_id,
+            'upload_id' => $upload->id,
+            'upload_uuid' => $upload->uuid,
+            'user_id' => $upload->user_id,
             'step' => $this->uploadStep()->value,
         ], $context);
     }

@@ -11,6 +11,13 @@ trait InteractsWithUploadStep
 {
     abstract protected function uploadStep(): UploadStep;
 
+    protected function resolveUpload(): Upload
+    {
+        return Upload::query()
+            ->where('uuid', $this->uploadUuid)
+            ->firstOrFail();
+    }
+
     protected function markStepProcessing(Upload $upload): void
     {
         $this->updateStepStatus($upload, StepStatus::Processing);

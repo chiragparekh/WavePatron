@@ -23,7 +23,7 @@ test('process upload metadata extracts ffprobe data and marks step completed', f
         return Process::result(output: sampleFfprobeOutput());
     });
 
-    (new ProcessUploadMetadata($upload))->handle();
+    (new ProcessUploadMetadata($upload->uuid))->handle();
 
     $upload->refresh();
 
@@ -69,7 +69,7 @@ test('process upload metadata marks step failed when ffprobe fails', function ()
         return Process::result(output: '', errorOutput: 'Invalid data', exitCode: 1);
     });
 
-    $job = new ProcessUploadMetadata($upload);
+    $job = new ProcessUploadMetadata($upload->uuid);
 
     try {
         $job->handle();

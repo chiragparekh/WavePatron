@@ -2,6 +2,7 @@
 
 use App\Enums\UploadStatus;
 use App\Jobs\ProcessUploadMetadata;
+use App\Jobs\ProcessUploadWaveform;
 use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Support\Facades\Bus;
@@ -117,7 +118,8 @@ test('owners can confirm an upload after the file exists on storage', function (
         ->uploaded_at->not->toBeNull();
 
     Bus::assertChained([
-        new ProcessUploadMetadata($upload),
+        new ProcessUploadMetadata($upload->uuid),
+        new ProcessUploadWaveform($upload->uuid),
     ]);
 });
 

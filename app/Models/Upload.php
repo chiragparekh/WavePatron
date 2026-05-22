@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'size',
     'disk',
     'path',
+    'waveform_path',
     'status',
     'step_statuses',
     'uploaded_at',
