@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\UploadStep;
 use App\Jobs\Concerns\InteractsWithUploadStep;
+use App\Models\Upload;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,10 @@ class ProcessUploadWaveform implements ShouldQueue
 
     private const int PeakCount = 1000;
 
+    private const int ProcessTimeoutSeconds = 300;
+
+    private const string TempFilePrefix = 'waveform_';
+
     public function __construct(
         public string $uploadUuid,
     ) {}
@@ -26,58 +31,36 @@ class ProcessUploadWaveform implements ShouldQueue
     public function handle(): void
     {
         $upload = $this->resolveUpload();
+        $tempPath = $this->createTempFile($upload);
 
         Log::info('Starting upload waveform generation.', $this->logContext($upload));
 
         $this->markStepProcessing($upload);
 
-        $url = Storage::disk($upload->disk)->temporaryUrl(
-            $upload->path,
-            now()->addMinutes(10),
-        );
+        try {
+            $this->runFfmpeg($upload, $tempPath);
 
-        Log::debug('Running ffmpeg for upload waveform.', $this->logContext($upload, [
-            'disk' => $upload->disk,
-            'path' => $upload->path,
-        ]));
+            $peaks = $this->generatePeaksFromFile($tempPath);
 
-        $result = Process::run([
-            'ffmpeg',
-            '-i', $url,
-            '-ac', '1',
-            '-ar', '8000',
-            '-f', 's16le',
-            '-acodec', 'pcm_s16le',
-            'pipe:1',
-        ]);
+            $waveformPath = "waveforms/{$upload->uuid}.json";
 
-        if (! $result->successful()) {
-            Log::error('ffmpeg failed to extract upload waveform.', $this->logContext($upload, [
-                'exit_code' => $result->exitCode(),
-                'error_output' => $result->errorOutput(),
+            Storage::disk($upload->disk)->put($waveformPath, json_encode([
+                'version' => 1,
+                'length' => self::PeakCount,
+                'data' => $peaks,
+            ], JSON_THROW_ON_ERROR));
+
+            $upload->update(['waveform_path' => $waveformPath]);
+
+            $this->markStepCompleted($upload);
+
+            Log::info('Upload waveform generation completed.', $this->logContext($upload, [
+                'waveform_path' => $waveformPath,
+                'peak_count' => count($peaks),
             ]));
-
-            throw new RuntimeException($result->errorOutput() ?: 'ffmpeg failed to extract waveform.');
+        } finally {
+            $this->safelyCleanupTempFile($tempPath);
         }
-
-        $peaks = $this->generatePeaks($result->output());
-
-        $waveformPath = "waveforms/{$upload->uuid}.json";
-
-        Storage::disk($upload->disk)->put($waveformPath, json_encode([
-            'version' => 1,
-            'length' => self::PeakCount,
-            'data' => $peaks,
-        ], JSON_THROW_ON_ERROR));
-
-        $upload->update(['waveform_path' => $waveformPath]);
-
-        $this->markStepCompleted($upload);
-
-        Log::info('Upload waveform generation completed.', $this->logContext($upload, [
-            'waveform_path' => $waveformPath,
-            'peak_count' => count($peaks),
-        ]));
     }
 
     public function failed(?Throwable $exception): void
@@ -90,44 +73,129 @@ class ProcessUploadWaveform implements ShouldQueue
         return UploadStep::Waveform;
     }
 
+    protected function createTempFile(Upload $upload): string
+    {
+        $tempPath = tempnam(sys_get_temp_dir(), self::TempFilePrefix.$upload->uuid.'_');
+
+        if ($tempPath === false) {
+            throw new RuntimeException('Failed to create temporary waveform file.');
+        }
+
+        return $tempPath;
+    }
+
+    protected function runFfmpeg(Upload $upload, string $tempPath): void
+    {
+        $url = Storage::disk($upload->disk)->temporaryUrl(
+            $upload->path,
+            now()->addMinutes(10),
+        );
+
+        Log::debug('Running ffmpeg for upload waveform.', $this->logContext($upload, [
+            'disk' => $upload->disk,
+            'path' => $upload->path,
+            'temp_path' => $tempPath,
+        ]));
+
+        $result = Process::timeout(self::ProcessTimeoutSeconds)->run([
+            'ffmpeg',
+            '-nostdin',
+            '-hide_banner',
+            '-y',
+            '-i', $url,
+            '-ac', '1',
+            '-ar', '8000',
+            '-f', 's16le',
+            '-acodec', 'pcm_s16le',
+            $tempPath,
+        ]);
+
+        if (! $result->successful()) {
+            Log::error('ffmpeg failed to extract upload waveform.', $this->logContext($upload, [
+                'exit_code' => $result->exitCode(),
+                'error_output' => $result->errorOutput(),
+            ]));
+
+            throw new RuntimeException($result->errorOutput() ?: 'ffmpeg failed to extract waveform.');
+        }
+    }
+
     /**
      * @return array<int, array{0: float, 1: float}>
      */
-    protected function generatePeaks(string $pcmData): array
+    protected function generatePeaksFromFile(string $path): array
     {
-        $sampleCount = intdiv(strlen($pcmData), 2);
+        $handle = fopen($path, 'rb');
 
-        if ($sampleCount === 0) {
-            throw new RuntimeException('No PCM samples extracted from audio.');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to open extracted PCM file.');
         }
 
-        /** @var array<int, int> $samples */
-        $samples = array_values(unpack('s*', $pcmData));
+        try {
+            $fileSize = filesize($path);
 
-        $chunkSize = max(1, intdiv($sampleCount, self::PeakCount));
-        $peaks = [];
-
-        for ($index = 0; $index < self::PeakCount; $index++) {
-            $start = $index * $chunkSize;
-
-            if ($start >= $sampleCount) {
-                $peaks[] = [0.0, 0.0];
-
-                continue;
+            if ($fileSize === false || $fileSize < 2) {
+                throw new RuntimeException('No PCM samples extracted from audio.');
             }
 
-            $end = min($start + $chunkSize, $sampleCount);
-            $chunk = array_slice($samples, $start, $end - $start);
+            $sampleCount = intdiv($fileSize, 2);
+            $chunkSize = max(1, intdiv($sampleCount, self::PeakCount));
+            $peaks = [];
 
-            $min = min($chunk);
-            $max = max($chunk);
+            for ($index = 0; $index < self::PeakCount; $index++) {
+                $startSample = $index * $chunkSize;
 
-            $peaks[] = [
-                round($min / 32768, 4),
-                round($max / 32768, 4),
-            ];
+                if ($startSample >= $sampleCount) {
+                    $peaks[] = [0.0, 0.0];
+
+                    continue;
+                }
+
+                $samplesInChunk = min($chunkSize, $sampleCount - $startSample);
+                $byteOffset = $startSample * 2;
+                $byteLength = $samplesInChunk * 2;
+
+                if (fseek($handle, $byteOffset) !== 0) {
+                    $peaks[] = [0.0, 0.0];
+
+                    continue;
+                }
+
+                $chunk = fread($handle, $byteLength);
+
+                if ($chunk === false || strlen($chunk) < 2) {
+                    $peaks[] = [0.0, 0.0];
+
+                    continue;
+                }
+
+                /** @var array<int, int> $samples */
+                $samples = array_values(unpack('s*', $chunk));
+
+                $peaks[] = [
+                    round(min($samples) / 32768, 4),
+                    round(max($samples) / 32768, 4),
+                ];
+            }
+
+            return $peaks;
+        } finally {
+            fclose($handle);
         }
+    }
 
-        return $peaks;
+    protected function safelyCleanupTempFile(string $tempPath): void
+    {
+        try {
+            if (is_file($tempPath)) {
+                unlink($tempPath);
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Failed to clean up temporary waveform file.', [
+                'upload_uuid' => $this->uploadUuid,
+                'temp_path' => $tempPath,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
     }
 }

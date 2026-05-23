@@ -6,6 +6,7 @@ use App\Enums\UploadStep;
 use App\Jobs\ProcessUploadWaveform;
 use App\Models\Upload;
 use App\Models\User;
+use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 
@@ -19,8 +20,14 @@ test('process upload waveform extracts peaks and marks step completed', function
 
     Storage::disk('s3')->put($upload->path, 'audio-bytes');
 
-    Process::fake(function () {
-        return Process::result(output: samplePcmOutput());
+    Process::fake(function (PendingProcess $process) {
+        $outputPath = end($process->command);
+
+        if (is_string($outputPath)) {
+            file_put_contents($outputPath, samplePcmOutput());
+        }
+
+        return Process::result();
     });
 
     (new ProcessUploadWaveform($upload->uuid))->handle();
