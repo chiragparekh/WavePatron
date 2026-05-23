@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AudioController;
 use App\Http\Controllers\Upload\HlsPlaylistController;
 use App\Http\Controllers\Upload\HlsSegmentController;
 use App\Http\Controllers\Upload\WaveformController;
@@ -9,6 +10,8 @@ Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    Route::get('audios', [AudioController::class, 'index'])->name('audios.index');
 
     Route::get('uploads/{upload}/hls/playlist.m3u8', [HlsPlaylistController::class, 'show'])
         ->name('uploads.hls.playlist');
