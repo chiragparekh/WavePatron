@@ -6,6 +6,8 @@ use App\Enums\StepStatus;
 use App\Enums\UploadStatus;
 use App\Enums\UploadStep;
 use App\Models\Upload;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 trait InteractsWithUploadStep
 {
@@ -36,6 +38,26 @@ trait InteractsWithUploadStep
         $upload->update(['status' => UploadStatus::Failed]);
     }
 
+    protected function safelyHandleFailure(?Throwable $exception, string $message): void
+    {
+        try {
+            $upload = $this->resolveUpload();
+
+            Log::error($message, $this->logContext($upload, [
+                'exception' => $exception?->getMessage(),
+            ]));
+
+            $this->markStepFailed($upload);
+        } catch (Throwable $secondaryException) {
+            Log::error('Could not mark upload step as failed.', [
+                'upload_uuid' => $this->uploadUuid,
+                'step' => $this->uploadStep()->value,
+                'original_exception' => $exception?->getMessage(),
+                'secondary_exception' => $secondaryException->getMessage(),
+            ]);
+        }
+    }
+
     protected function markReadyIfComplete(Upload $upload): void
     {
         $upload->refresh();
@@ -61,5 +83,19 @@ trait InteractsWithUploadStep
         $stepStatuses[$this->uploadStep()->value] = $status->value;
 
         $upload->update(['step_statuses' => $stepStatuses]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    protected function logContext(Upload $upload, array $context = []): array
+    {
+        return array_merge([
+            'upload_id' => $upload->id,
+            'upload_uuid' => $upload->uuid,
+            'user_id' => $upload->user_id,
+            'step' => $this->uploadStep()->value,
+        ], $context);
     }
 }

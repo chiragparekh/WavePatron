@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Enums\UploadStep;
 use App\Jobs\Concerns\InteractsWithUploadStep;
-use App\Models\Upload;
 use App\Models\UploadMetadata;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -127,13 +126,7 @@ class ProcessUploadMetadata implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
-        $upload = $this->resolveUpload();
-
-        Log::error('Upload metadata extraction failed.', $this->logContext($upload, [
-            'exception' => $exception?->getMessage(),
-        ]));
-
-        $this->markStepFailed($upload);
+        $this->safelyHandleFailure($exception, 'Upload metadata extraction failed.');
     }
 
     protected function uploadStep(): UploadStep
@@ -177,19 +170,5 @@ class ProcessUploadMetadata implements ShouldQueue
         $remainingSeconds = (int) floor($seconds % 60);
 
         return sprintf('%02d:%02d:%02d', $hours, $minutes, $remainingSeconds);
-    }
-
-    /**
-     * @param  array<string, mixed>  $context
-     * @return array<string, mixed>
-     */
-    protected function logContext(Upload $upload, array $context = []): array
-    {
-        return array_merge([
-            'upload_id' => $upload->id,
-            'upload_uuid' => $upload->uuid,
-            'user_id' => $upload->user_id,
-            'step' => $this->uploadStep()->value,
-        ], $context);
     }
 }
