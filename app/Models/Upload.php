@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'disk',
     'path',
     'waveform_path',
+    'hls_path',
     'status',
     'step_statuses',
     'uploaded_at',
@@ -72,6 +73,21 @@ class Upload extends Model
                 $step->value => StepStatus::Pending->value,
             ])
             ->all();
+    }
+
+    public function hlsStoragePrefix(): string
+    {
+        return "hls/{$this->uuid}";
+    }
+
+    public function hlsPlaylistPath(): string
+    {
+        return "{$this->hlsStoragePrefix()}/playlist.m3u8";
+    }
+
+    public function hlsSegmentPath(string $segment): string
+    {
+        return "{$this->hlsStoragePrefix()}/{$segment}";
     }
 
     /**

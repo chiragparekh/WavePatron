@@ -22,6 +22,7 @@ class UploadResource extends JsonResource
             'step_statuses' => $this->step_statuses,
             'path' => $this->path,
             'waveform_path' => $this->waveform_path,
+            'hls_path' => $this->hls_path,
             'original_name' => $this->original_name,
             'uploaded_at' => $this->uploaded_at?->toIso8601String(),
             'metadata' => UploadMetadataResource::make($this->whenLoaded('metadata')),
