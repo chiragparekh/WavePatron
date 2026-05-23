@@ -1,19 +1,20 @@
-import { useHttp } from '@inertiajs/react';
+import { Link, useHttp } from '@inertiajs/react';
+import {
+    CheckCircle2,
+    Circle,
+    FileAudio,
+    Loader2,
+    Music2,
+    Upload,
+    X,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { show, store, update } from '@/actions/App/Http/Controllers/Api/UploadController';
 import InputError from '@/components/input-error';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
+import { index as audios } from '@/routes/audios';
 
 const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const STATUS_POLL_INTERVAL_MS = 2000;
@@ -64,6 +65,14 @@ function isPollingStatus(status: string): boolean {
     return status === 'uploaded' || status === 'processing';
 }
 
+function isStepComplete(status: string): boolean {
+    return status === 'completed' || status === 'complete' || status === 'ready';
+}
+
+function isStepActive(status: string): boolean {
+    return status === 'processing' || status === 'in_progress' || status === 'running';
+}
+
 function uploadFileToStorage(
     file: File,
     signed: SignedUploadResponse,
@@ -108,6 +117,18 @@ function uploadFileToStorage(
     });
 }
 
+function validateAudioFile(file: File): string | null {
+    if (!file.type.startsWith('audio/')) {
+        return 'Please choose an audio file.';
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+        return 'Files must be 500 MB or smaller.';
+    }
+
+    return null;
+}
+
 export default function AudioUploader() {
     const inputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -115,6 +136,7 @@ export default function AudioUploader() {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [clientError, setClientError] = useState<string | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
     const [uploadedUpload, setUploadedUpload] = useState<UploadResponse | null>(
         null,
     );
@@ -145,6 +167,30 @@ export default function AudioUploader() {
         setUploadError(null);
         setUploadedUpload(null);
         reset();
+    }
+
+    function selectFile(file: File | null): void {
+        resetState();
+        setSelectedFile(null);
+
+        if (!file) {
+            return;
+        }
+
+        const fileValidationError = validateAudioFile(file);
+
+        if (fileValidationError) {
+            setClientError(fileValidationError);
+
+            return;
+        }
+
+        setSelectedFile(file);
+        setData({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+        });
     }
 
     useEffect(() => {
@@ -208,36 +254,44 @@ export default function AudioUploader() {
     }, [fetchUploadStatus, phase, uploadedUpload?.uuid]);
 
     function handleFileChange(event: React.ChangeEvent<HTMLInputElement>): void {
-        const file = event.target.files?.[0] ?? null;
+        selectFile(event.target.files?.[0] ?? null);
+    }
 
+    const isUploadBusy =
+        processing ||
+        confirming ||
+        phase === 'uploading' ||
+        phase === 'signing' ||
+        phase === 'confirming';
+
+    function handleDragOver(event: React.DragEvent<HTMLDivElement>): void {
+        event.preventDefault();
+        setIsDragOver(true);
+    }
+
+    function handleDragLeave(event: React.DragEvent<HTMLDivElement>): void {
+        event.preventDefault();
+        setIsDragOver(false);
+    }
+
+    function handleDrop(event: React.DragEvent<HTMLDivElement>): void {
+        event.preventDefault();
+        setIsDragOver(false);
+
+        if (isUploadBusy) {
+            return;
+        }
+
+        selectFile(event.dataTransfer.files?.[0] ?? null);
+    }
+
+    function clearSelectedFile(): void {
+        if (inputRef.current) {
+            inputRef.current.value = '';
+        }
+
+        setSelectedFile(null);
         resetState();
-        setSelectedFile(file);
-
-        if (!file) {
-            return;
-        }
-
-        if (!file.type.startsWith('audio/')) {
-            setClientError('Please choose an audio file.');
-            setSelectedFile(null);
-            event.target.value = '';
-
-            return;
-        }
-
-        if (file.size > MAX_UPLOAD_BYTES) {
-            setClientError('Files must be 500 MB or smaller.');
-            setSelectedFile(null);
-            event.target.value = '';
-
-            return;
-        }
-
-        setData({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-        });
     }
 
     async function handleUpload(): Promise<void> {
@@ -276,13 +330,7 @@ export default function AudioUploader() {
         }
     }
 
-    const isUploadBusy =
-        processing ||
-        confirming ||
-        phase === 'uploading' ||
-        phase === 'signing' ||
-        phase === 'confirming';
-    const showUploadControls =
+    const showDropZone =
         phase === 'idle' ||
         phase === 'signing' ||
         phase === 'uploading' ||
@@ -290,189 +338,287 @@ export default function AudioUploader() {
         phase === 'error';
     const validationError =
         errors.name ?? errors.size ?? errors.type;
+    const statusMessage =
+        phase === 'signing'
+            ? 'Requesting upload URL...'
+            : phase === 'confirming'
+              ? 'Confirming upload...'
+              : phase === 'uploading'
+                ? 'Uploading to storage...'
+                : null;
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Upload audio</CardTitle>
-                <CardDescription>
-                    Files upload directly to storage. Maximum size is 500 MB.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                {showUploadControls && (
-                    <>
-                        <div className="grid gap-2">
-                            <Label htmlFor="audio">Audio file</Label>
-                            <input
-                                ref={inputRef}
-                                id="audio"
-                                type="file"
-                                accept="audio/*"
-                                className="block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
-                                onChange={handleFileChange}
-                                disabled={isUploadBusy}
-                            />
-                        </div>
+        <div className="mx-auto w-full max-w-2xl space-y-8">
+            <div className="space-y-2 text-center">
+                <div className="bg-primary/10 text-primary mx-auto flex size-14 items-center justify-center rounded-2xl">
+                    <Music2 className="size-7" />
+                </div>
+                <h1 className="text-3xl font-semibold tracking-tight">
+                    Upload audio
+                </h1>
+                <p className="text-muted-foreground mx-auto max-w-md text-sm leading-relaxed">
+                    Drag and drop your file or browse from your device. Files
+                    upload directly to storage — up to 500 MB.
+                </p>
+            </div>
 
-                        {selectedFile && (
-                            <dl className="grid gap-2 rounded-lg border p-4 text-sm">
-                                <div className="flex justify-between gap-4">
-                                    <dt className="text-muted-foreground">
-                                        Name
-                                    </dt>
-                                    <dd className="text-right font-medium">
+            {showDropZone && (
+                <div className="space-y-4">
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                            if (!isUploadBusy) {
+                                inputRef.current?.click();
+                            }
+                        }}
+                        onKeyDown={(event) => {
+                            if (
+                                (event.key === 'Enter' || event.key === ' ') &&
+                                !isUploadBusy
+                            ) {
+                                event.preventDefault();
+                                inputRef.current?.click();
+                            }
+                        }}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={cn(
+                            'group relative flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 transition-all outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+                            isDragOver
+                                ? 'border-primary bg-primary/5 scale-[1.01]'
+                                : 'border-border/80 bg-card/50 hover:border-primary/40 hover:bg-card/80',
+                            isUploadBusy && 'pointer-events-none opacity-70',
+                        )}
+                    >
+                        <input
+                            ref={inputRef}
+                            id="audio"
+                            type="file"
+                            accept="audio/*"
+                            className="sr-only"
+                            onChange={handleFileChange}
+                            disabled={isUploadBusy}
+                        />
+
+                        {selectedFile ? (
+                            <div className="flex w-full max-w-md flex-col items-center gap-4">
+                                <div className="bg-primary/10 text-primary flex size-16 items-center justify-center rounded-2xl">
+                                    <FileAudio className="size-8" />
+                                </div>
+                                <div className="min-w-0 text-center">
+                                    <p className="truncate text-base font-medium">
                                         {selectedFile.name}
-                                    </dd>
-                                </div>
-                                <div className="flex justify-between gap-4">
-                                    <dt className="text-muted-foreground">
-                                        Size
-                                    </dt>
-                                    <dd className="font-medium">
+                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-sm">
                                         {formatBytes(selectedFile.size)}
-                                    </dd>
+                                        {selectedFile.type
+                                            ? ` · ${selectedFile.type}`
+                                            : ''}
+                                    </p>
                                 </div>
-                                <div className="flex justify-between gap-4">
-                                    <dt className="text-muted-foreground">
-                                        MIME type
-                                    </dt>
-                                    <dd className="font-mono text-xs">
-                                        {selectedFile.type || 'unknown'}
-                                    </dd>
-                                </div>
-                            </dl>
-                        )}
-
-                        {(phase === 'signing' ||
-                            phase === 'uploading' ||
-                            phase === 'confirming' ||
-                            uploadProgress > 0) && (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground">
-                                        {phase === 'signing'
-                                            ? 'Requesting upload URL...'
-                                            : phase === 'confirming'
-                                              ? 'Confirming upload...'
-                                              : 'Uploading to storage...'}
-                                    </span>
-                                    <span>
-                                        {phase === 'signing' ||
-                                        phase === 'confirming'
-                                            ? null
-                                            : `${uploadProgress}%`}
-                                    </span>
-                                </div>
-                                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                                    <div
-                                        className={cn(
-                                            'h-full bg-primary transition-all duration-200',
-                                            (phase === 'signing' ||
-                                                phase === 'confirming') &&
-                                                'w-1/4 animate-pulse',
-                                        )}
-                                        style={{
-                                            width:
-                                                phase === 'signing' ||
-                                                phase === 'confirming'
-                                                    ? undefined
-                                                    : `${uploadProgress}%`,
+                                {!isUploadBusy && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            clearSelectedFile();
                                         }}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
-
-                {phase === 'processing' && uploadedUpload && (
-                    <Alert>
-                        <AlertTitle className="flex items-center gap-2">
-                            <Spinner />
-                            Processing upload
-                        </AlertTitle>
-                        <AlertDescription className="space-y-3">
-                            <p>
-                                Your file was uploaded. We are preparing metadata,
-                                waveform, and streaming output.
-                            </p>
-                            <p className="font-mono text-xs break-all">
-                                {uploadedUpload.uuid}
-                            </p>
-                            <dl className="grid gap-2 text-xs">
-                                {Object.entries(
-                                    uploadedUpload.step_statuses,
-                                ).map(([step, status]) => (
-                                    <div
-                                        key={step}
-                                        className="flex justify-between gap-4"
                                     >
-                                        <dt className="text-muted-foreground capitalize">
-                                            {formatStepLabel(step)}
-                                        </dt>
-                                        <dd className="font-medium capitalize">
-                                            {status.replace(/_/g, ' ')}
-                                        </dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </AlertDescription>
-                    </Alert>
-                )}
+                                        <X />
+                                        Choose a different file
+                                    </Button>
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                                <div className="bg-muted group-hover:bg-primary/10 mb-4 flex size-16 items-center justify-center rounded-2xl transition-colors">
+                                    <Upload className="text-muted-foreground group-hover:text-primary size-7 transition-colors" />
+                                </div>
+                                <p className="text-base font-medium">
+                                    Drop your audio file here
+                                </p>
+                                <p className="text-muted-foreground mt-1 text-sm">
+                                    or click to browse
+                                </p>
+                                <p className="text-muted-foreground/70 mt-4 text-xs">
+                                    MP3, WAV, FLAC, AAC and more
+                                </p>
+                            </>
+                        )}
+                    </div>
 
-                {phase === 'success' && uploadedUpload && (
-                    <Alert>
-                        <AlertTitle>Upload complete</AlertTitle>
-                        <AlertDescription className="space-y-1">
-                            <p>Your audio file is ready.</p>
-                            <p className="font-mono text-xs break-all">
-                                {uploadedUpload.uuid}
-                            </p>
-                        </AlertDescription>
-                    </Alert>
-                )}
+                    {(phase === 'signing' ||
+                        phase === 'uploading' ||
+                        phase === 'confirming' ||
+                        uploadProgress > 0) && (
+                        <div className="space-y-2 rounded-xl border bg-card/60 p-4">
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">
+                                    {statusMessage}
+                                </span>
+                                {phase === 'uploading' && (
+                                    <span className="font-medium tabular-nums">
+                                        {uploadProgress}%
+                                    </span>
+                                )}
+                            </div>
+                            <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                                <div
+                                    className={cn(
+                                        'bg-primary h-full transition-all duration-200',
+                                        (phase === 'signing' ||
+                                            phase === 'confirming') &&
+                                            'w-1/3 animate-pulse',
+                                    )}
+                                    style={{
+                                        width:
+                                            phase === 'signing' ||
+                                            phase === 'confirming'
+                                                ? undefined
+                                                : `${uploadProgress}%`,
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
 
-                {clientError && (
-                    <InputError message={clientError} className="mt-0" />
-                )}
-
-                {validationError && (
-                    <InputError message={validationError} className="mt-0" />
-                )}
-
-                {uploadError && (
-                    <InputError message={uploadError} className="mt-0" />
-                )}
-
-                <div className="flex flex-wrap gap-3">
-                    {showUploadControls && (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
                         <Button
                             type="button"
-                            onClick={handleUpload}
+                            size="lg"
+                            className="min-w-40"
+                            onClick={() => void handleUpload()}
                             disabled={!selectedFile || isUploadBusy}
                         >
-                            {isUploadBusy && <Spinner />}
-                            Upload
+                            {isUploadBusy ? (
+                                <>
+                                    <Spinner />
+                                    Uploading...
+                                </>
+                            ) : (
+                                <>
+                                    <Upload />
+                                    Upload audio
+                                </>
+                            )}
                         </Button>
-                    )}
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                            if (inputRef.current) {
-                                inputRef.current.value = '';
-                            }
-
-                            setSelectedFile(null);
-                            resetState();
-                        }}
-                        disabled={isUploadBusy}
-                    >
-                        Reset
-                    </Button>
+                        {selectedFile && !isUploadBusy && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="lg"
+                                onClick={clearSelectedFile}
+                            >
+                                Clear
+                            </Button>
+                        )}
+                    </div>
                 </div>
-            </CardContent>
-        </Card>
+            )}
+
+            {phase === 'processing' && uploadedUpload && (
+                <div className="space-y-4 rounded-2xl border bg-card/60 p-6">
+                    <div className="flex items-center gap-3">
+                        <Spinner className="size-5" />
+                        <div>
+                            <p className="font-medium">Processing your audio</p>
+                            <p className="text-muted-foreground text-sm">
+                                Preparing metadata, waveform, and streaming
+                                output.
+                            </p>
+                        </div>
+                    </div>
+                    <ul className="space-y-3">
+                        {Object.entries(uploadedUpload.step_statuses).map(
+                            ([step, status]) => {
+                                const complete = isStepComplete(status);
+                                const active = isStepActive(status);
+
+                                return (
+                                    <li
+                                        key={step}
+                                        className="flex items-center justify-between gap-4 text-sm"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            {complete ? (
+                                                <CheckCircle2 className="text-primary size-4 shrink-0" />
+                                            ) : active ? (
+                                                <Loader2 className="text-primary size-4 shrink-0 animate-spin" />
+                                            ) : (
+                                                <Circle className="text-muted-foreground/50 size-4 shrink-0" />
+                                            )}
+                                            <span className="capitalize">
+                                                {formatStepLabel(step)}
+                                            </span>
+                                        </div>
+                                        <span
+                                            className={cn(
+                                                'text-xs capitalize',
+                                                complete
+                                                    ? 'text-primary'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            {status.replace(/_/g, ' ')}
+                                        </span>
+                                    </li>
+                                );
+                            },
+                        )}
+                    </ul>
+                </div>
+            )}
+
+            {phase === 'success' && uploadedUpload && (
+                <div className="space-y-6 rounded-2xl border bg-card/60 p-8 text-center">
+                    <div className="bg-primary/10 text-primary mx-auto flex size-16 items-center justify-center rounded-full">
+                        <CheckCircle2 className="size-8" />
+                    </div>
+                    <div className="space-y-2">
+                        <h2 className="text-xl font-semibold">
+                            Upload complete
+                        </h2>
+                        <p className="text-muted-foreground text-sm">
+                            {uploadedUpload.original_name} is ready to play.
+                        </p>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+                        <Button asChild size="lg">
+                            <Link href={audios()} prefetch>
+                                <Music2 />
+                                Go to audios
+                            </Link>
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="lg"
+                            onClick={clearSelectedFile}
+                        >
+                            Upload another
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {(clientError || validationError || uploadError) && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+                    {clientError && (
+                        <InputError message={clientError} className="mt-0" />
+                    )}
+                    {validationError && (
+                        <InputError message={validationError} className="mt-0" />
+                    )}
+                    {uploadError && (
+                        <InputError message={uploadError} className="mt-0" />
+                    )}
+                </div>
+            )}
+        </div>
     );
 }

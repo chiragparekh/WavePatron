@@ -12,6 +12,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
 
     Route::get('audios', [AudioController::class, 'index'])->name('audios.index');
+    Route::inertia('uploads/create', 'uploads/create')->name('uploads.create');
 
     Route::get('uploads/{upload}/hls/playlist.m3u8', [HlsPlaylistController::class, 'show'])
         ->name('uploads.hls.playlist');
