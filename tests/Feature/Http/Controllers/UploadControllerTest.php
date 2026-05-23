@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UploadStatus;
+use App\Jobs\ProcessUploadHls;
 use App\Jobs\ProcessUploadMetadata;
 use App\Jobs\ProcessUploadWaveform;
 use App\Models\Upload;
@@ -120,6 +121,7 @@ test('owners can confirm an upload after the file exists on storage', function (
     Bus::assertChained([
         new ProcessUploadMetadata($upload->uuid),
         new ProcessUploadWaveform($upload->uuid),
+        new ProcessUploadHls($upload->uuid),
     ]);
 });
 
