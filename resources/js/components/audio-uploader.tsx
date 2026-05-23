@@ -1,6 +1,6 @@
 import { useHttp } from '@inertiajs/react';
-import { useRef, useState } from 'react';
-import { store, update } from '@/actions/App/Http/Controllers/UploadController';
+import { useEffect, useRef, useState } from 'react';
+import { show, store, update } from '@/actions/App/Http/Controllers/Api/UploadController';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
 const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+const STATUS_POLL_INTERVAL_MS = 2000;
 
 type SignedUploadResponse = {
     uuid: string;
@@ -39,6 +40,7 @@ type UploadPhase =
     | 'signing'
     | 'uploading'
     | 'confirming'
+    | 'processing'
     | 'success'
     | 'error';
 
@@ -52,6 +54,14 @@ function formatBytes(bytes: number): string {
     }
 
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatStepLabel(step: string): string {
+    return step.replace(/_/g, ' ');
+}
+
+function isPollingStatus(status: string): boolean {
+    return status === 'uploaded' || status === 'processing';
 }
 
 function uploadFileToStorage(
@@ -123,6 +133,11 @@ export default function AudioUploader() {
         UploadResponse
     >({});
 
+    const { get: fetchUploadStatus } = useHttp<
+        Record<string, never>,
+        UploadResponse
+    >({});
+
     function resetState(): void {
         setPhase('idle');
         setUploadProgress(0);
@@ -131,6 +146,66 @@ export default function AudioUploader() {
         setUploadedUpload(null);
         reset();
     }
+
+    useEffect(() => {
+        const uploadUuid = uploadedUpload?.uuid;
+
+        if (phase !== 'processing' || uploadUuid === undefined) {
+            return;
+        }
+
+        let cancelled = false;
+
+        async function pollUploadStatus(uuid: string): Promise<void> {
+            try {
+                const upload = await fetchUploadStatus(show.url(uuid));
+
+                if (cancelled) {
+                    return;
+                }
+
+                setUploadedUpload(upload);
+
+                if (upload.status === 'ready') {
+                    setPhase('success');
+
+                    return;
+                }
+
+                if (upload.status === 'failed') {
+                    setPhase('error');
+                    setUploadError('Processing failed. Please try again.');
+
+                    return;
+                }
+
+                if (!isPollingStatus(upload.status)) {
+                    setPhase('error');
+                    setUploadError(
+                        `Unexpected upload status: ${upload.status}.`,
+                    );
+                }
+            } catch {
+                if (!cancelled) {
+                    setPhase('error');
+                    setUploadError(
+                        'Unable to check processing status. Please try again.',
+                    );
+                }
+            }
+        }
+
+        void pollUploadStatus(uploadUuid);
+
+        const intervalId = window.setInterval(() => {
+            void pollUploadStatus(uploadUuid);
+        }, STATUS_POLL_INTERVAL_MS);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [fetchUploadStatus, phase, uploadedUpload?.uuid]);
 
     function handleFileChange(event: React.ChangeEvent<HTMLInputElement>): void {
         const file = event.target.files?.[0] ?? null;
@@ -190,7 +265,7 @@ export default function AudioUploader() {
             const upload = await confirmUpload(update.url(signed.uuid));
 
             setUploadedUpload(upload);
-            setPhase('success');
+            setPhase('processing');
         } catch (error) {
             setPhase('error');
             setUploadError(
@@ -201,12 +276,18 @@ export default function AudioUploader() {
         }
     }
 
-    const isBusy =
+    const isUploadBusy =
         processing ||
         confirming ||
         phase === 'uploading' ||
         phase === 'signing' ||
         phase === 'confirming';
+    const showUploadControls =
+        phase === 'idle' ||
+        phase === 'signing' ||
+        phase === 'uploading' ||
+        phase === 'confirming' ||
+        phase === 'error';
     const validationError =
         errors.name ?? errors.size ?? errors.type;
 
@@ -219,91 +300,134 @@ export default function AudioUploader() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="grid gap-2">
-                    <Label htmlFor="audio">Audio file</Label>
-                    <input
-                        ref={inputRef}
-                        id="audio"
-                        type="file"
-                        accept="audio/*"
-                        className="block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
-                        onChange={handleFileChange}
-                        disabled={isBusy}
-                    />
-                </div>
-
-                {selectedFile && (
-                    <dl className="grid gap-2 rounded-lg border p-4 text-sm">
-                        <div className="flex justify-between gap-4">
-                            <dt className="text-muted-foreground">Name</dt>
-                            <dd className="text-right font-medium">
-                                {selectedFile.name}
-                            </dd>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                            <dt className="text-muted-foreground">Size</dt>
-                            <dd className="font-medium">
-                                {formatBytes(selectedFile.size)}
-                            </dd>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                            <dt className="text-muted-foreground">MIME type</dt>
-                            <dd className="font-mono text-xs">
-                                {selectedFile.type || 'unknown'}
-                            </dd>
-                        </div>
-                    </dl>
-                )}
-
-                {(phase === 'signing' ||
-                    phase === 'uploading' ||
-                    phase === 'confirming' ||
-                    uploadProgress > 0) && (
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">
-                                {phase === 'signing'
-                                    ? 'Requesting upload URL...'
-                                    : phase === 'confirming'
-                                      ? 'Confirming upload...'
-                                      : 'Uploading to storage...'}
-                            </span>
-                            <span>
-                                {phase === 'signing' || phase === 'confirming'
-                                    ? null
-                                    : `${uploadProgress}%`}
-                            </span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-muted">
-                            <div
-                                className={cn(
-                                    'h-full bg-primary transition-all duration-200',
-                                    (phase === 'signing' ||
-                                        phase === 'confirming') &&
-                                        'w-1/4 animate-pulse',
-                                )}
-                                style={{
-                                    width:
-                                        phase === 'signing' ||
-                                        phase === 'confirming'
-                                            ? undefined
-                                            : `${uploadProgress}%`,
-                                }}
+                {showUploadControls && (
+                    <>
+                        <div className="grid gap-2">
+                            <Label htmlFor="audio">Audio file</Label>
+                            <input
+                                ref={inputRef}
+                                id="audio"
+                                type="file"
+                                accept="audio/*"
+                                className="block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
+                                onChange={handleFileChange}
+                                disabled={isUploadBusy}
                             />
                         </div>
-                    </div>
+
+                        {selectedFile && (
+                            <dl className="grid gap-2 rounded-lg border p-4 text-sm">
+                                <div className="flex justify-between gap-4">
+                                    <dt className="text-muted-foreground">
+                                        Name
+                                    </dt>
+                                    <dd className="text-right font-medium">
+                                        {selectedFile.name}
+                                    </dd>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <dt className="text-muted-foreground">
+                                        Size
+                                    </dt>
+                                    <dd className="font-medium">
+                                        {formatBytes(selectedFile.size)}
+                                    </dd>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <dt className="text-muted-foreground">
+                                        MIME type
+                                    </dt>
+                                    <dd className="font-mono text-xs">
+                                        {selectedFile.type || 'unknown'}
+                                    </dd>
+                                </div>
+                            </dl>
+                        )}
+
+                        {(phase === 'signing' ||
+                            phase === 'uploading' ||
+                            phase === 'confirming' ||
+                            uploadProgress > 0) && (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">
+                                        {phase === 'signing'
+                                            ? 'Requesting upload URL...'
+                                            : phase === 'confirming'
+                                              ? 'Confirming upload...'
+                                              : 'Uploading to storage...'}
+                                    </span>
+                                    <span>
+                                        {phase === 'signing' ||
+                                        phase === 'confirming'
+                                            ? null
+                                            : `${uploadProgress}%`}
+                                    </span>
+                                </div>
+                                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                        className={cn(
+                                            'h-full bg-primary transition-all duration-200',
+                                            (phase === 'signing' ||
+                                                phase === 'confirming') &&
+                                                'w-1/4 animate-pulse',
+                                        )}
+                                        style={{
+                                            width:
+                                                phase === 'signing' ||
+                                                phase === 'confirming'
+                                                    ? undefined
+                                                    : `${uploadProgress}%`,
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {phase === 'processing' && uploadedUpload && (
+                    <Alert>
+                        <AlertTitle className="flex items-center gap-2">
+                            <Spinner />
+                            Processing upload
+                        </AlertTitle>
+                        <AlertDescription className="space-y-3">
+                            <p>
+                                Your file was uploaded. We are preparing metadata,
+                                waveform, and streaming output.
+                            </p>
+                            <p className="font-mono text-xs break-all">
+                                {uploadedUpload.uuid}
+                            </p>
+                            <dl className="grid gap-2 text-xs">
+                                {Object.entries(
+                                    uploadedUpload.step_statuses,
+                                ).map(([step, status]) => (
+                                    <div
+                                        key={step}
+                                        className="flex justify-between gap-4"
+                                    >
+                                        <dt className="text-muted-foreground capitalize">
+                                            {formatStepLabel(step)}
+                                        </dt>
+                                        <dd className="font-medium capitalize">
+                                            {status.replace(/_/g, ' ')}
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </AlertDescription>
+                    </Alert>
                 )}
 
                 {phase === 'success' && uploadedUpload && (
                     <Alert>
                         <AlertTitle>Upload complete</AlertTitle>
                         <AlertDescription className="space-y-1">
-                            <p>Your audio file was uploaded successfully.</p>
+                            <p>Your audio file is ready.</p>
                             <p className="font-mono text-xs break-all">
                                 {uploadedUpload.uuid}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                                Status: {uploadedUpload.status}
                             </p>
                         </AlertDescription>
                     </Alert>
@@ -322,14 +446,16 @@ export default function AudioUploader() {
                 )}
 
                 <div className="flex flex-wrap gap-3">
-                    <Button
-                        type="button"
-                        onClick={handleUpload}
-                        disabled={!selectedFile || isBusy}
-                    >
-                        {isBusy && <Spinner />}
-                        Upload
-                    </Button>
+                    {showUploadControls && (
+                        <Button
+                            type="button"
+                            onClick={handleUpload}
+                            disabled={!selectedFile || isUploadBusy}
+                        >
+                            {isUploadBusy && <Spinner />}
+                            Upload
+                        </Button>
+                    )}
                     <Button
                         type="button"
                         variant="outline"
@@ -341,7 +467,7 @@ export default function AudioUploader() {
                             setSelectedFile(null);
                             resetState();
                         }}
-                        disabled={isBusy && phase !== 'error'}
+                        disabled={isUploadBusy}
                     >
                         Reset
                     </Button>

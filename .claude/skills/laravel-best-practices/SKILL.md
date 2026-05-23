@@ -104,7 +104,6 @@ Check sibling files, related controllers, models, or tests for established patte
 - Implicit route model binding
 - Scoped bindings for nested resources
 - `Route::resource()` or `apiResource()`
-- CRUD method names only (`store`, not `signedUrl`); limit with `only()` / `except()`
 - Methods under 10 lines — extract to actions/services
 - Type-hint Form Requests for auto-validation
 
@@ -146,8 +145,7 @@ Check sibling files, related controllers, models, or tests for established patte
 
 ### 15. Architecture → `rules/architecture.md`
 
-- Single-purpose Action classes in `app/Actions/{Domain}/` with `execute()`; inject into thin controllers
-- Dependency injection over `app()` helper
+- Single-purpose Action classes; dependency injection over `app()` helper
 - Prefer official Laravel packages and follow conventions, don't override defaults
 - Default to `ORDER BY id DESC` or `created_at DESC`; `mb_*` for UTF-8 safety
 - `defer()` for post-response work; `Context` for request-scoped data; `Concurrency::run()` for parallel execution

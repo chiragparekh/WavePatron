@@ -24,7 +24,7 @@ class ConfirmUpload
         }
 
         $upload->update([
-            'status' => UploadStatus::Uploaded,
+            'status' => UploadStatus::Processing,
             'uploaded_at' => now(),
         ]);
 

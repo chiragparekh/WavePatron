@@ -40,32 +40,6 @@ Route::resource('posts', PostController::class);
 Route::apiResource('posts', Api\PostController::class);
 ```
 
-## Use CRUD Method Names Only
-
-Controllers must expose standard REST verbs — `index`, `create`, `store`, `show`, `edit`, `update`, and `destroy` — not bespoke action names.
-
-Incorrect:
-```php
-Route::post('uploads/signed-url', [UploadController::class, 'signedUrl']);
-
-public function signedUrl(SignedUploadUrlRequest $request): JsonResponse
-{
-    // ...
-}
-```
-
-Correct:
-```php
-Route::resource('uploads', UploadController::class)->only(['store']);
-
-public function store(StoreUploadRequest $request): JsonResponse
-{
-    // ...
-}
-```
-
-Limit resource routes with `only()` / `except()` when you do not need every action. Name Form Requests after the verb (`StoreUploadRequest`, `UpdatePostRequest`, etc.).
-
 ## Keep Controllers Thin
 
 Aim for under 10 lines per method. Extract business logic to action or service classes.
@@ -87,15 +61,13 @@ public function store(Request $request)
 
 Correct:
 ```php
-public function store(StorePostRequest $request, CreatePost $createPost)
+public function store(StorePostRequest $request, CreatePostAction $create)
 {
-    $post = $createPost->execute($request->validated());
+    $post = $create->execute($request->validated());
 
     return redirect()->route('posts.show', $post);
 }
 ```
-
-Place `CreatePost` and similar classes in `app/Actions/{Domain}/` with an `execute()` method.
 
 ## Type-Hint Form Requests
 

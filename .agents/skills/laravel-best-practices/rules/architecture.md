@@ -2,33 +2,22 @@
 
 ## Single-Purpose Action Classes
 
-Extract discrete business operations into Action classes under `app/Actions/{Domain}/`. Controllers stay thin and delegate to `execute()`.
+Extract discrete business operations into invokable Action classes.
 
 ```php
-// app/Actions/Upload/CreateSignedUploadUrl.php
-class CreateSignedUploadUrl
+class CreateOrderAction
 {
-    public function execute(User $user, array $metadata): array
-    {
-        // storage signing, path generation, domain rules
-    }
-}
+    public function __construct(private InventoryService $inventory) {}
 
-// app/Http/Controllers/UploadController.php
-class UploadController extends Controller
-{
-    public function store(
-        StoreUploadRequest $request,
-        CreateSignedUploadUrl $createSignedUploadUrl,
-    ): JsonResponse {
-        return response()->json(
-            $createSignedUploadUrl->execute($request->user(), $request->validated()),
-        );
+    public function execute(array $data): Order
+    {
+        $order = Order::create($data);
+        $this->inventory->reserve($order);
+
+        return $order;
     }
 }
 ```
-
-Use Actions when a controller method would otherwise contain storage calls, multi-step workflows, or domain logic beyond HTTP orchestration.
 
 ## Use Dependency Injection
 

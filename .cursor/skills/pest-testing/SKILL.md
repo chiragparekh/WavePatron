@@ -29,12 +29,6 @@ The `{name}` argument should include only the path and test name, but should not
 - Unit/Feature tests: `tests/Feature` and `tests/Unit` directories.
 - Browser tests: `tests/Browser/` directory.
 - Do NOT remove tests without approval - these are core application code.
-- Mirror `app/` class paths in `tests/` with a one-to-one mapping and a `Test` suffix:
-  - `app/Http/Controllers/UploadController.php` → `tests/Feature/Http/Controllers/UploadControllerTest.php`
-  - `app/Http/Controllers/Settings/ProfileController.php` → `tests/Feature/Http/Controllers/Settings/ProfileControllerTest.php`
-  - `app/Actions/Upload/CreateSignedUploadUrl.php` → `tests/Unit/Actions/Upload/CreateSignedUploadUrlTest.php`
-- Use Feature tests for HTTP/controller behavior; use Unit tests for Actions and other isolated classes.
-- Avoid generic test filenames (for example `UploadTest.php`) when tests target a specific class.
 
 ### Basic Test Structure
 

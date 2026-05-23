@@ -14,6 +14,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v13
 - laravel/prompts (PROMPTS) - v0
+- laravel/sanctum (SANCTUM) - v4
 - laravel/wayfinder (WAYFINDER) - v0
 - laravel/boost (BOOST) - v2
 - laravel/mcp (MCP) - v0
@@ -168,21 +169,6 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 - For APIs, default to using Eloquent API Resources and API versioning unless existing API routes do not, then you should follow existing application convention.
 
-## Controllers
-
-- Use standard RESTful CRUD method names on controllers: `index`, `create`, `store`, `show`, `edit`, `update`, and `destroy`.
-- Do not add bespoke action names (for example `signedUrl`) when a CRUD verb fits. Issuing a presigned upload URL belongs on `store`.
-- Register resource routes with `Route::resource()` or `Route::apiResource()`, limiting actions with `only()` / `except()` when the full seven routes are not needed.
-- Pair actions with Form Requests named for the verb (for example `StoreUploadRequest` for `store`).
-- Keep controller methods thin: validate with Form Requests, then delegate non-trivial business logic to Action classes.
-
-## Action Classes
-
-- Place single-purpose business operations in `app/Actions/{Domain}/` classes with an `execute()` method (for example `App\Actions\Upload\CreateSignedUploadUrl`).
-- Inject Action classes into controllers via constructor or method injection; do not call `app()` inside controllers.
-- Controllers should orchestrate HTTP concerns (requests, responses, redirects); Actions own the operation (storage calls, domain rules, side effects).
-- Name Actions after what they do (`CreateSignedUploadUrl`, `CreateNewUser`), not after HTTP verbs alone.
-
 ## URL Generation
 
 - When generating links to other pages, prefer named routes and the `route()` function.
@@ -192,7 +178,6 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - When creating models for tests, use the factories for the models. Check if the factory has custom states that can be used before manually setting up the model.
 - Faker: Use methods such as `$this->faker->word()` or `fake()->randomDigit()`. Follow existing conventions whether to use `$this->faker` or `fake()`.
 - When creating tests, make use of `php artisan make:test [options] {name}` to create a feature test, and pass `--unit` to create a unit test. Most tests should be feature tests.
-- Mirror application class paths in test paths with a one-to-one mapping and a `Test` suffix on the filename. Examples: `app/Http/Controllers/UploadController.php` → `tests/Feature/Http/Controllers/UploadControllerTest.php`; `app/Actions/Upload/CreateSignedUploadUrl.php` → `tests/Unit/Actions/Upload/CreateSignedUploadUrlTest.php`. Do not use generic feature names (for example `UploadTest.php`) when the tests target a specific class.
 
 ## Vite Error
 

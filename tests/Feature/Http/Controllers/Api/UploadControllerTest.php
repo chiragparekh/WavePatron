@@ -108,14 +108,14 @@ test('owners can confirm an upload after the file exists on storage', function (
         ->assertSuccessful()
         ->assertJson([
             'uuid' => $upload->uuid,
-            'status' => UploadStatus::Uploaded->value,
+            'status' => UploadStatus::Processing->value,
             'path' => $upload->path,
             'original_name' => $upload->original_name,
         ])
         ->assertJsonMissing(['id']);
 
     expect($upload->fresh())
-        ->status->toBe(UploadStatus::Uploaded)
+        ->status->toBe(UploadStatus::Processing)
         ->uploaded_at->not->toBeNull();
 
     Bus::assertChained([
@@ -162,6 +162,37 @@ test('confirm rejects uploads missing from storage', function () {
         ->patchJson(route('uploads.update', $upload))
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['upload']);
+});
+
+test('owners can fetch upload status from the api', function () {
+    $user = User::factory()->create();
+    $upload = Upload::factory()->for($user)->processing()->create();
+
+    $this->actingAs($user)
+        ->getJson(route('uploads.show', $upload))
+        ->assertSuccessful()
+        ->assertJson([
+            'uuid' => $upload->uuid,
+            'status' => UploadStatus::Processing->value,
+            'path' => $upload->path,
+            'original_name' => $upload->original_name,
+        ])
+        ->assertJsonMissing(['id']);
+});
+
+test('guests cannot fetch upload status from the api', function () {
+    $upload = Upload::factory()->create();
+
+    $this->getJson(route('uploads.show', $upload))
+        ->assertUnauthorized();
+});
+
+test('users cannot fetch another users upload status from the api', function () {
+    $upload = Upload::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('uploads.show', $upload))
+        ->assertForbidden();
 });
 
 /**

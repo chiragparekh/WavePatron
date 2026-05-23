@@ -58,6 +58,14 @@ class UploadFactory extends Factory
         ]);
     }
 
+    public function processing(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'status' => UploadStatus::Processing,
+            'uploaded_at' => now(),
+        ]);
+    }
+
     public function withMetadata(): static
     {
         return $this->afterCreating(function (Upload $upload): void {
