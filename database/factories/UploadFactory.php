@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Enums\StepStatus;
 use App\Enums\UploadStatus;
+use App\Enums\UploadStep;
 use App\Models\Upload;
 use App\Models\UploadMetadata;
 use App\Models\User;
@@ -63,6 +65,21 @@ class UploadFactory extends Factory
         return $this->state(fn (array $attributes): array => [
             'status' => UploadStatus::Processing,
             'uploaded_at' => now(),
+        ]);
+    }
+
+    public function ready(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'status' => UploadStatus::Ready,
+            'uploaded_at' => now(),
+            'waveform_path' => sprintf('waveforms/%s.json', $attributes['uuid']),
+            'hls_path' => sprintf('hls/%s/playlist.m3u8', $attributes['uuid']),
+            'step_statuses' => collect(UploadStep::cases())
+                ->mapWithKeys(fn (UploadStep $step): array => [
+                    $step->value => StepStatus::Completed->value,
+                ])
+                ->all(),
         ]);
     }
 
