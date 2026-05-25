@@ -8,7 +8,7 @@ use App\Http\Responses\Auth\TwoFactorLoginResponse;
 use App\Listeners\LogImpersonationActivity;
 use Database\Seeders\RoleSeeder;
 use App\Policies\ActivityPolicy;
-use App\Support\CreatorProfile\NullCreatorProfileChecker;
+use App\Support\CreatorProfile\CreatorProfileChecker;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +27,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(ChecksCreatorProfile::class, NullCreatorProfileChecker::class);
+        $this->app->singleton(ChecksCreatorProfile::class, CreatorProfileChecker::class);
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
     }

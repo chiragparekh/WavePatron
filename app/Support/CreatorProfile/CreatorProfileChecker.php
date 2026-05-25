@@ -5,10 +5,10 @@ namespace App\Support\CreatorProfile;
 use App\Contracts\ChecksCreatorProfile;
 use App\Models\User;
 
-class NullCreatorProfileChecker implements ChecksCreatorProfile
+class CreatorProfileChecker implements ChecksCreatorProfile
 {
     public function hasProfile(User $user): bool
     {
-        return false;
+        return $user->creatorProfile()->exists();
     }
 }

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Cashier\Billable;
@@ -50,6 +51,14 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     public function uploads(): HasMany
     {
         return $this->hasMany(Upload::class);
+    }
+
+    /**
+     * @return HasOne<CreatorProfile, $this>
+     */
+    public function creatorProfile(): HasOne
+    {
+        return $this->hasOne(CreatorProfile::class);
     }
 
     public function canAccessPanel(Panel $panel): bool
