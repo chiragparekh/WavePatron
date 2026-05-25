@@ -6,6 +6,7 @@ use App\Enums\StepStatus;
 use App\Enums\UploadStatus;
 use App\Enums\UploadStep;
 use App\Models\Upload;
+use App\Notifications\UploadReadyNotification;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -74,6 +75,9 @@ trait InteractsWithUploadStep
 
         if ($allStepsComplete) {
             $upload->update(['status' => UploadStatus::Ready]);
+
+            $upload->load('user', 'metadata');
+            $upload->user->notify(new UploadReadyNotification($upload));
         }
     }
 

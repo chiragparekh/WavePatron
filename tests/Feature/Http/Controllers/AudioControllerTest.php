@@ -92,6 +92,52 @@ test('audios page includes metadata and generated playback and waveform urls', f
         );
 });
 
+test('audios page does not include processing uploads on initial load', function () {
+    $user = User::factory()->create();
+
+    Upload::factory()->for($user)->ready()->withMetadata()->create();
+    Upload::factory()->for($user)->processing()->create([
+        'original_name' => 'processing.mp3',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('audios.index'))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('audios/index')
+            ->missing('processingUploads')
+        );
+});
+
+test('audios page includes processing uploads when requested as a partial reload', function () {
+    $user = User::factory()->create();
+
+    Upload::factory()->for($user)->ready()->withMetadata()->create();
+    $processingUpload = Upload::factory()->for($user)->processing()->create([
+        'original_name' => 'processing.mp3',
+    ]);
+    Upload::factory()->for($user)->failed()->create([
+        'original_name' => 'failed.mp3',
+    ]);
+    Upload::factory()->for($user)->pendingUpload()->create([
+        'original_name' => 'pending.mp3',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('audios.index'))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('audios/index')
+            ->reloadOnly('processingUploads', fn (Assert $reload) => $reload
+                ->has('processingUploads', 2)
+                ->where('processingUploads.1.uuid', $processingUpload->uuid)
+                ->where('processingUploads.1.original_name', 'processing.mp3')
+                ->where('processingUploads.1.status', 'processing')
+                ->has('processingUploads.1.step_statuses')
+            )
+        );
+});
+
 test('audios page paginates results with twenty per page by default', function () {
     $user = User::factory()->create();
 

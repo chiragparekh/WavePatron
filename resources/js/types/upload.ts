@@ -17,6 +17,21 @@ export type UploadListItem = {
     waveform_url: string;
 };
 
+export type UploadProcessingItem = {
+    uuid: string;
+    original_name: string;
+    status: 'processing' | 'failed';
+    step_statuses: Record<string, string>;
+    uploaded_at: string | null;
+};
+
+export type UploadStats = {
+    total_ready: number;
+    total_processing: number;
+    total_failed: number;
+    total_storage_bytes: number;
+};
+
 export type WaveformData = {
     version: number;
     length: number;

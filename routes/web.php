@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AudioController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Upload\HlsPlaylistController;
 use App\Http\Controllers\Upload\HlsSegmentController;
 use App\Http\Controllers\Upload\WaveformController;
@@ -9,7 +10,7 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('audios', [AudioController::class, 'index'])->name('audios.index');
     Route::inertia('uploads/create', 'uploads/create')->name('uploads.create');

@@ -68,6 +68,18 @@ class UploadFactory extends Factory
         ]);
     }
 
+    public function failed(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'status' => UploadStatus::Failed,
+            'uploaded_at' => now(),
+            'step_statuses' => array_merge(Upload::defaultStepStatuses(), [
+                UploadStep::Metadata->value => StepStatus::Completed->value,
+                UploadStep::Waveform->value => StepStatus::Failed->value,
+            ]),
+        ]);
+    }
+
     public function ready(): static
     {
         return $this->state(fn (array $attributes): array => [
