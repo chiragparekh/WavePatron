@@ -1,3 +1,4 @@
+import type { AppModeState } from '@/types/app-mode';
 import type { Auth } from '@/types/auth';
 
 declare module 'react' {
@@ -12,6 +13,7 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
+            appMode: AppModeState | null;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };
