@@ -63,12 +63,12 @@ test('dashboard redirects admins to the filament panel', function () {
         ->assertRedirect('/admin');
 });
 
-test('dashboard redirects creators to the creator dashboard', function () {
+test('dashboard redirects creators without a profile to onboarding', function () {
     $creator = User::factory()->creator()->create();
 
     $this->actingAs($creator)
         ->get(route('dashboard'))
-        ->assertRedirect(route('creator.dashboard'));
+        ->assertRedirect(route('creator.onboarding'));
 });
 
 test('dashboard redirects listeners to the listener dashboard', function () {
