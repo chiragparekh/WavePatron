@@ -9,28 +9,28 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { onboarding } from '@/routes/creator';
+import { edit } from '@/routes/creator/profile';
+import type { CreatorProfileFormData } from '@/types/creator-profile';
 
-export default function CreatorOnboarding({
-    suggestedHandle,
+export default function EditCreatorProfile({
+    profile,
 }: {
-    suggestedHandle: string;
+    profile: CreatorProfileFormData;
 }) {
     return (
         <>
-            <Head title="Creator onboarding" />
+            <Head title="Creator profile" />
             <div className="mx-auto flex h-full w-full max-w-2xl flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Set up your creator profile</CardTitle>
+                        <CardTitle>Creator profile</CardTitle>
                         <CardDescription>
-                            Create your public creator page before publishing
-                            audio or tiers.
+                            Update how listeners see your public creator page.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form
-                            {...ProfileController.store.form()}
+                            {...ProfileController.update.form()}
                             options={{
                                 preserveScroll: true,
                             }}
@@ -39,17 +39,14 @@ export default function CreatorOnboarding({
                             {({ processing, errors }) => (
                                 <>
                                     <CreatorProfileFormFields
-                                        defaults={{
-                                            handle: suggestedHandle,
-                                            visibility: 'hidden',
-                                        }}
+                                        defaults={profile}
                                         errors={errors}
                                     />
                                     <Button
                                         type="submit"
                                         disabled={processing}
                                     >
-                                        Create profile
+                                        Save changes
                                     </Button>
                                 </>
                             )}
@@ -61,11 +58,11 @@ export default function CreatorOnboarding({
     );
 }
 
-CreatorOnboarding.layout = {
+EditCreatorProfile.layout = {
     breadcrumbs: [
         {
-            title: 'Creator onboarding',
-            href: onboarding(),
+            title: 'Creator profile',
+            href: edit(),
         },
     ],
 };

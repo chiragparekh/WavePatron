@@ -4,6 +4,7 @@ use App\Http\Controllers\Account\UpdateAccountModeController;
 use App\Http\Controllers\AudioController;
 use App\Http\Controllers\Creator\DashboardController as CreatorDashboardController;
 use App\Http\Controllers\Creator\OnboardingController;
+use App\Http\Controllers\Creator\ProfileController as CreatorProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Listener\DashboardController as ListenerDashboardController;
 use App\Http\Controllers\Upload\HlsPlaylistController;
@@ -20,6 +21,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('listener/dashboard', ListenerDashboardController::class)->name('listener.dashboard');
     Route::get('creator/dashboard', CreatorDashboardController::class)->name('creator.dashboard');
     Route::get('creator/onboarding', OnboardingController::class)->name('creator.onboarding');
+    Route::get('creator/profile/edit', [CreatorProfileController::class, 'edit'])->name('creator.profile.edit');
+    Route::post('creator/profile', [CreatorProfileController::class, 'store'])->name('creator.profile.store');
+    Route::put('creator/profile', [CreatorProfileController::class, 'update'])->name('creator.profile.update');
 
     Route::get('audios', [AudioController::class, 'index'])->name('audios.index');
     Route::inertia('uploads/create', 'uploads/create')->name('uploads.create');
