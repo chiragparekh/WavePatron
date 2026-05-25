@@ -6,12 +6,14 @@ use App\Contracts\ChecksCreatorProfile;
 use App\Http\Responses\Auth\LoginResponse;
 use App\Http\Responses\Auth\TwoFactorLoginResponse;
 use App\Listeners\LogImpersonationActivity;
+use Database\Seeders\RoleSeeder;
 use App\Policies\ActivityPolicy;
 use App\Support\CreatorProfile\NullCreatorProfileChecker;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -37,7 +39,19 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(EnterImpersonation::class, [LogImpersonationActivity::class, 'handleEnter']);
         Event::listen(LeaveImpersonation::class, [LogImpersonationActivity::class, 'handleLeave']);
 
+        $this->ensureApplicationRolesExist();
         $this->configureDefaults();
+    }
+
+    protected function ensureApplicationRolesExist(): void
+    {
+        once(function (): void {
+            if (! Schema::hasTable(config('permission.table_names.roles', 'roles'))) {
+                return;
+            }
+
+            $this->app->make(RoleSeeder::class)->run();
+        });
     }
 
     protected function configureDefaults(): void

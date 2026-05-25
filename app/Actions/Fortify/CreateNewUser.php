@@ -31,7 +31,7 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $input['password'],
         ]);
 
-        $user->assignRole(Role::Listener->value);
+        $user->assignRole([Role::Listener->value, Role::Creator->value]);
 
         return $user;
     }

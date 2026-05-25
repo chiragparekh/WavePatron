@@ -26,7 +26,7 @@ class UserFactory extends Factory
     {
         return $this->afterCreating(function (User $user): void {
             if ($user->roles()->doesntExist()) {
-                $user->assignRole(Role::Listener->value);
+                $user->assignRole([Role::Listener->value, Role::Creator->value]);
             }
         });
     }

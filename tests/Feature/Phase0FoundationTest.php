@@ -2,12 +2,13 @@
 
 use App\Enums\AppMode;
 use App\Enums\AudioAccessLevel;
+use App\Enums\AudioPublishStatus;
 use App\Enums\CreatorPayoutStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\Role as AppRole;
 use App\Enums\SubscriptionStatus;
 use App\Enums\TierStatus;
-use App\Models\Upload;
+use App\Models\CreatorProfile;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -25,6 +26,7 @@ test('phase 0 package configuration files are published', function () {
 test('shared foundation enums are defined', function () {
     expect(AppMode::Listener->value)->toBe('listener')
         ->and(AudioAccessLevel::Premium->value)->toBe('premium')
+        ->and(AudioPublishStatus::Published->value)->toBe('published')
         ->and(CreatorPayoutStatus::Enabled->value)->toBe('enabled')
         ->and(TierStatus::Requested->value)->toBe('requested')
         ->and(SubscriptionStatus::Active->value)->toBe('active')
@@ -39,20 +41,21 @@ test('role seeder creates admin creator and listener roles', function () {
     expect(Role::pluck('name')->all())->toEqual(AppRole::values());
 });
 
-test('registered users receive the listener role by default', function () {
+test('registered users receive listener and creator roles by default', function () {
     $this->skipUnlessFortifyHas(Features::registration());
 
     $this->post(route('register.store'), [
-        'name' => 'Listener User',
-        'email' => 'listener@example.com',
+        'name' => 'Dual Role User',
+        'email' => 'dual-role@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
     ])->assertRedirect(route('dashboard', absolute: false));
 
-    $user = User::query()->where('email', 'listener@example.com')->first();
+    $user = User::query()->where('email', 'dual-role@example.com')->first();
 
     expect($user)->not->toBeNull()
-        ->and($user->hasRole(AppRole::Listener->value))->toBeTrue();
+        ->and($user->hasRole(AppRole::Listener->value))->toBeTrue()
+        ->and($user->hasRole(AppRole::Creator->value))->toBeTrue();
 });
 
 test('dashboard redirects admins to the filament panel', function () {
@@ -71,12 +74,23 @@ test('dashboard redirects creators without a profile to onboarding', function ()
         ->assertRedirect(route('creator.onboarding'));
 });
 
-test('dashboard redirects listeners to the listener dashboard', function () {
+test('dashboard redirects creators with a profile to the canonical dashboard page', function () {
+    $creator = User::factory()->creator()->create();
+    CreatorProfile::factory()->for($creator)->create();
+
+    $this->actingAs($creator)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page->component('creator/dashboard'));
+});
+
+test('dashboard renders the listener dashboard for listeners', function () {
     $listener = User::factory()->listener()->create();
 
     $this->actingAs($listener)
         ->get(route('dashboard'))
-        ->assertRedirect(route('listener.dashboard'));
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page->component('listener/dashboard'));
 });
 
 test('admins can access the filament admin panel', function () {
@@ -95,19 +109,13 @@ test('non admin users cannot access the filament admin panel', function () {
         ->assertForbidden();
 });
 
-test('listener dashboard renders upload stats', function () {
+test('listener dashboard renders at the canonical url', function () {
     $user = User::factory()->listener()->create();
 
-    Upload::factory()->for($user)->ready()->create([
-        'size' => 1_024,
-    ]);
-
     $this->actingAs($user)
-        ->get(route('listener.dashboard'))
+        ->get(route('dashboard'))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
             ->component('listener/dashboard')
-            ->where('stats.total_ready', 1)
-            ->where('stats.total_storage_bytes', 1_024)
         );
 });
