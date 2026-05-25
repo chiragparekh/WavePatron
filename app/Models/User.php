@@ -20,6 +20,7 @@ use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use STS\FilamentImpersonate\Facades\Impersonation;
 
 #[Fillable(['name', 'email', 'password', 'active_mode'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -53,13 +54,22 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
 
     public function canAccessPanel(Panel $panel): bool
     {
+        if (Impersonation::isImpersonating()) {
+            return false;
+        }
+
         return $panel->getId() === 'admin'
-          && $this->hasRole(Role::Admin->value);
+            && $this->hasRole(Role::Admin->value);
     }
 
     public function canImpersonate(): bool
     {
         return $this->hasRole(Role::Admin->value);
+    }
+
+    public function canBeImpersonated(): bool
+    {
+        return ! $this->hasRole(Role::Admin->value);
     }
 
     public function activeAppMode(): AppMode

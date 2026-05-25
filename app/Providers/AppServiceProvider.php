@@ -5,17 +5,21 @@ namespace App\Providers;
 use App\Contracts\ChecksCreatorProfile;
 use App\Http\Responses\Auth\LoginResponse;
 use App\Http\Responses\Auth\TwoFactorLoginResponse;
+use App\Listeners\LogImpersonationActivity;
 use App\Policies\ActivityPolicy;
 use App\Support\CreatorProfile\NullCreatorProfileChecker;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Spatie\Activitylog\Models\Activity;
+use STS\FilamentImpersonate\Events\EnterImpersonation;
+use STS\FilamentImpersonate\Events\LeaveImpersonation;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,6 +33,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Activity::class, ActivityPolicy::class);
+
+        Event::listen(EnterImpersonation::class, [LogImpersonationActivity::class, 'handleEnter']);
+        Event::listen(LeaveImpersonation::class, [LogImpersonationActivity::class, 'handleLeave']);
 
         $this->configureDefaults();
     }
