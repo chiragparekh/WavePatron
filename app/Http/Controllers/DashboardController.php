@@ -2,24 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\Role;
+use App\Support\AuthRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request): RedirectResponse
+    public function __invoke(Request $request, AuthRedirect $authRedirect): RedirectResponse
     {
-        $user = $request->user();
-
-        if ($user->hasRole(Role::Admin->value)) {
-            return redirect('/admin');
-        }
-
-        if ($user->hasRole(Role::Creator->value)) {
-            return redirect()->route('creator.dashboard');
-        }
-
-        return redirect()->route('listener.dashboard');
+        return redirect($authRedirect->homeUrl($request->user()));
     }
 }
