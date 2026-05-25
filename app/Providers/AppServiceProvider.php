@@ -3,20 +3,29 @@
 namespace App\Providers;
 
 use App\Contracts\ChecksCreatorProfile;
+use App\Contracts\ChecksSubscriptionAccess;
+use App\Contracts\CreatesStripeTierProduct;
+use App\Contracts\ManagesStripeConnect;
 use App\Http\Responses\Auth\LoginResponse;
 use App\Http\Responses\Auth\TwoFactorLoginResponse;
 use App\Listeners\LogImpersonationActivity;
-use Database\Seeders\RoleSeeder;
+use App\Models\Subscription;
 use App\Policies\ActivityPolicy;
 use App\Support\CreatorProfile\CreatorProfileChecker;
+use App\Support\Stripe\FakeStripeConnectService;
+use App\Support\Stripe\FakeStripeTierProductCreator;
+use App\Support\Stripe\StripeConnectService;
+use App\Support\Subscription\SubscriptionAccessChecker;
 use Carbon\CarbonImmutable;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Cashier\Cashier;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Spatie\Activitylog\Models\Activity;
@@ -28,16 +37,25 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(ChecksCreatorProfile::class, CreatorProfileChecker::class);
+        $this->app->singleton(ChecksSubscriptionAccess::class, SubscriptionAccessChecker::class);
+        $this->app->singleton(ManagesStripeConnect::class, function () {
+            return $this->app->environment('testing')
+                ? new FakeStripeConnectService
+                : new StripeConnectService;
+        });
+        $this->app->singleton(CreatesStripeTierProduct::class, FakeStripeTierProductCreator::class);
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
     }
 
     public function boot(): void
     {
-        Gate::policy(Activity::class, ActivityPolicy::class);
+        Cashier::useSubscriptionModel(Subscription::class);
 
         Event::listen(EnterImpersonation::class, [LogImpersonationActivity::class, 'handleEnter']);
         Event::listen(LeaveImpersonation::class, [LogImpersonationActivity::class, 'handleLeave']);
+
+        Gate::policy(Activity::class, ActivityPolicy::class);
 
         $this->ensureApplicationRolesExist();
         $this->configureDefaults();

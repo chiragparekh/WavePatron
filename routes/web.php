@@ -5,9 +5,12 @@ use App\Http\Controllers\AudioController;
 use App\Http\Controllers\Creator\AudioController as CreatorAudioController;
 use App\Http\Controllers\Creator\DashboardController as CreatorDashboardController;
 use App\Http\Controllers\Creator\OnboardingController;
+use App\Http\Controllers\Creator\PayoutController;
 use App\Http\Controllers\Creator\ProfileController as CreatorProfileController;
 use App\Http\Controllers\Creator\TierController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Public\CreatorProfileController as PublicCreatorProfileController;
+use App\Http\Controllers\Public\CreatorSubscribeController;
 use App\Http\Controllers\Listener\DashboardController as ListenerDashboardController;
 use App\Http\Controllers\Upload\CreateUploadController;
 use App\Http\Controllers\Upload\HlsPlaylistController;
@@ -16,6 +19,12 @@ use App\Http\Controllers\Upload\WaveformController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+Route::get('creators/{handle}', PublicCreatorProfileController::class)->name('creators.show');
+
+Route::get('creators/{profile}/subscribe/{tier}', CreatorSubscribeController::class)
+    ->middleware(['auth', 'verified'])
+    ->name('creators.subscribe');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('account/mode', UpdateAccountModeController::class)->name('account.mode.update');
@@ -41,6 +50,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('tiers/{tier}/submit', [TierController::class, 'submit'])->name('tiers.submit');
         Route::post('tiers/{tier}/activate', [TierController::class, 'activate'])->name('tiers.activate');
         Route::post('tiers/{tier}/archive', [TierController::class, 'archive'])->name('tiers.archive');
+
+        Route::get('payouts', [PayoutController::class, 'show'])->name('payouts.show');
+        Route::post('payouts/onboarding', [PayoutController::class, 'store'])->name('payouts.onboarding');
     });
 
     Route::get('audios', [AudioController::class, 'index'])->name('audios.index');

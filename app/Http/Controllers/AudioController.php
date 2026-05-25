@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AppMode;
 use App\Http\Resources\UploadListItemResource;
 use App\Http\Resources\UploadProcessingItemResource;
+use App\Queries\Upload\ListenerAccessibleUploadsQuery;
 use App\Queries\Upload\ProcessingUploadsQuery;
 use App\Queries\Upload\ReadyUploadsQuery;
 use Illuminate\Http\Request;
@@ -16,15 +18,25 @@ class AudioController extends Controller
     {
         $user = $request->user();
 
+        if ($user->activeAppMode() === AppMode::Creator) {
+            return Inertia::render('audios/index', [
+                'uploads' => Inertia::scroll(
+                    UploadListItemResource::collection(
+                        (new ReadyUploadsQuery($user))->builder()->paginate(20),
+                    ),
+                ),
+                'processingUploads' => Inertia::optional(fn () => UploadProcessingItemResource::collection(
+                    (new ProcessingUploadsQuery($user))->builder()->get(),
+                )->resolve()),
+            ]);
+        }
+
         return Inertia::render('audios/index', [
             'uploads' => Inertia::scroll(
                 UploadListItemResource::collection(
-                    (new ReadyUploadsQuery($user))->builder()->paginate(20),
+                    (new ListenerAccessibleUploadsQuery($user))->builder()->paginate(20),
                 ),
             ),
-            'processingUploads' => Inertia::optional(fn () => UploadProcessingItemResource::collection(
-                (new ProcessingUploadsQuery($user))->builder()->get(),
-            )->resolve()),
         ]);
     }
 }

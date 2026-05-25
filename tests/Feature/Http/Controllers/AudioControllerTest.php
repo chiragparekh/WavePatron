@@ -1,5 +1,10 @@
 <?php
 
+use App\Enums\AppMode;
+use App\Enums\SubscriptionStatus;
+use App\Models\CreatorProfile;
+use App\Models\Subscription;
+use App\Models\Tier;
 use App\Models\Upload;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -9,9 +14,12 @@ test('guests cannot access the audios page', function () {
         ->assertRedirect(route('login'));
 });
 
-test('authenticated users see only their own ready uploads', function () {
-    $user = User::factory()->create();
-    $otherUser = User::factory()->create();
+test('creator mode users see only their own ready uploads', function () {
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
+    $otherUser = User::factory()->creator()->create();
 
     $readyUpload = Upload::factory()
         ->for($user)
@@ -22,6 +30,7 @@ test('authenticated users see only their own ready uploads', function () {
     Upload::factory()
         ->for($otherUser)
         ->ready()
+        ->published()
         ->withMetadata()
         ->create(['original_name' => 'theirs.mp3']);
 
@@ -36,8 +45,11 @@ test('authenticated users see only their own ready uploads', function () {
         );
 });
 
-test('non-ready uploads are excluded from the audios page', function () {
-    $user = User::factory()->create();
+test('creator mode excludes non-ready uploads from the audios page', function () {
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
 
     Upload::factory()->for($user)->ready()->withMetadata()->create();
     Upload::factory()->for($user)->processing()->withMetadata()->create();
@@ -53,8 +65,106 @@ test('non-ready uploads are excluded from the audios page', function () {
         );
 });
 
+test('listener mode shows free published ready audio from any creator', function () {
+    $listener = User::factory()->listener()->create();
+    $creator = User::factory()->creator()->create();
+    CreatorProfile::factory()->for($creator)->create();
+
+    $accessibleUpload = Upload::factory()
+        ->for($creator)
+        ->ready()
+        ->published()
+        ->free()
+        ->withMetadata()
+        ->create(['original_name' => 'free.mp3']);
+
+    Upload::factory()
+        ->for($creator)
+        ->ready()
+        ->draft()
+        ->free()
+        ->create(['original_name' => 'draft.mp3']);
+
+    Upload::factory()
+        ->for($creator)
+        ->processing()
+        ->published()
+        ->free()
+        ->create(['original_name' => 'processing.mp3']);
+
+    $this->actingAs($listener)
+        ->get(route('audios.index'))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('audios/index')
+            ->has('uploads.data', 1)
+            ->where('uploads.data.0.uuid', $accessibleUpload->uuid)
+            ->where('uploads.data.0.creator.display_name', $creator->creatorProfile->display_name)
+            ->missing('processingUploads')
+        );
+});
+
+test('listener mode shows premium published ready audio with an accessible subscription', function () {
+    $listener = User::factory()->listener()->create();
+    $creator = User::factory()->creator()->create();
+    $profile = CreatorProfile::factory()->for($creator)->create();
+    $tier = Tier::factory()->for($profile)->active()->create();
+
+    $premiumUpload = Upload::factory()
+        ->for($creator)
+        ->ready()
+        ->published()
+        ->premium()
+        ->withMetadata()
+        ->create(['original_name' => 'premium.mp3']);
+
+    Subscription::query()->create([
+        'user_id' => $listener->id,
+        'type' => 'creator-'.$profile->id,
+        'stripe_id' => 'sub_audios_library',
+        'stripe_status' => 'active',
+        'stripe_price' => $tier->stripe_monthly_price_id,
+        'creator_profile_id' => $profile->id,
+        'tier_id' => $tier->id,
+        'local_status' => SubscriptionStatus::Active,
+    ]);
+
+    $this->actingAs($listener)
+        ->get(route('audios.index'))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('audios/index')
+            ->has('uploads.data', 1)
+            ->where('uploads.data.0.uuid', $premiumUpload->uuid)
+        );
+});
+
+test('listener mode hides premium published ready audio without an accessible subscription', function () {
+    $listener = User::factory()->listener()->create();
+    $creator = User::factory()->creator()->create();
+    CreatorProfile::factory()->for($creator)->create();
+
+    Upload::factory()
+        ->for($creator)
+        ->ready()
+        ->published()
+        ->premium()
+        ->create(['original_name' => 'locked.mp3']);
+
+    $this->actingAs($listener)
+        ->get(route('audios.index'))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('audios/index')
+            ->has('uploads.data', 0)
+        );
+});
+
 test('audios page includes metadata and generated playback and waveform urls', function () {
-    $user = User::factory()->create();
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
 
     $upload = Upload::factory()
         ->for($user)
@@ -92,8 +202,11 @@ test('audios page includes metadata and generated playback and waveform urls', f
         );
 });
 
-test('audios page does not include processing uploads on initial load', function () {
-    $user = User::factory()->create();
+test('creator mode audios page does not include processing uploads on initial load', function () {
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
 
     Upload::factory()->for($user)->ready()->withMetadata()->create();
     Upload::factory()->for($user)->processing()->create([
@@ -109,8 +222,11 @@ test('audios page does not include processing uploads on initial load', function
         );
 });
 
-test('audios page includes processing uploads when requested as a partial reload', function () {
-    $user = User::factory()->create();
+test('creator mode audios page includes processing uploads when requested as a partial reload', function () {
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
 
     Upload::factory()->for($user)->ready()->withMetadata()->create();
     $processingUpload = Upload::factory()->for($user)->processing()->create([
@@ -139,7 +255,10 @@ test('audios page includes processing uploads when requested as a partial reload
 });
 
 test('audios page paginates results with twenty per page by default', function () {
-    $user = User::factory()->create();
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
 
     Upload::factory()
         ->for($user)
@@ -160,7 +279,10 @@ test('audios page paginates results with twenty per page by default', function (
 });
 
 test('audios page returns the next page of uploads', function () {
-    $user = User::factory()->create();
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
 
     Upload::factory()
         ->for($user)
