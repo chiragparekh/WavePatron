@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\AudioAccessLevel;
+use App\Enums\AudioPublishStatus;
 use App\Enums\StepStatus;
 use App\Enums\UploadStatus;
 use App\Enums\UploadStep;
@@ -39,6 +41,8 @@ class UploadFactory extends Factory
                 $attributes['uuid'] ?? $uuid,
             ),
             'status' => UploadStatus::PendingUpload,
+            'publish_status' => AudioPublishStatus::Draft,
+            'access_level' => AudioAccessLevel::Free,
             'step_statuses' => Upload::defaultStepStatuses(),
             'uploaded_at' => null,
         ];
@@ -100,5 +104,33 @@ class UploadFactory extends Factory
         return $this->afterCreating(function (Upload $upload): void {
             UploadMetadata::factory()->for($upload)->create();
         });
+    }
+
+    public function published(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'publish_status' => AudioPublishStatus::Published,
+        ]);
+    }
+
+    public function draft(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'publish_status' => AudioPublishStatus::Draft,
+        ]);
+    }
+
+    public function premium(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'access_level' => AudioAccessLevel::Premium,
+        ]);
+    }
+
+    public function free(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'access_level' => AudioAccessLevel::Free,
+        ]);
     }
 }

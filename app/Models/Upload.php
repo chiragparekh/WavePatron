@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\AudioAccessLevel;
+use App\Enums\AudioPublishStatus;
 use App\Enums\StepStatus;
 use App\Enums\UploadStatus;
 use App\Enums\UploadStep;
@@ -20,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'uuid',
     'user_id',
     'original_name',
+    'title',
+    'description',
     'mime_type',
     'size',
     'disk',
@@ -27,6 +31,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'waveform_path',
     'hls_path',
     'status',
+    'publish_status',
+    'access_level',
     'step_statuses',
     'uploaded_at',
 ])]
@@ -44,6 +50,8 @@ class Upload extends Model
     {
         return [
             'status' => UploadStatus::class,
+            'publish_status' => AudioPublishStatus::class,
+            'access_level' => AudioAccessLevel::class,
             'step_statuses' => 'array',
             'uploaded_at' => 'datetime',
             'size' => 'integer',
@@ -73,6 +81,36 @@ class Upload extends Model
                 $step->value => StepStatus::Pending->value,
             ])
             ->all();
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->publish_status === AudioPublishStatus::Published;
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->publish_status === AudioPublishStatus::Draft;
+    }
+
+    public function isFree(): bool
+    {
+        return $this->access_level === AudioAccessLevel::Free;
+    }
+
+    public function isPremium(): bool
+    {
+        return $this->access_level === AudioAccessLevel::Premium;
+    }
+
+    public function isReady(): bool
+    {
+        return $this->status === UploadStatus::Ready;
+    }
+
+    public function displayTitle(): string
+    {
+        return $this->title ?? $this->metadata?->tags['title'] ?? $this->original_name;
     }
 
     public function hlsStoragePrefix(): string
