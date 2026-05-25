@@ -1,6 +1,6 @@
 import { router, usePage } from '@inertiajs/react';
 import { Mic2, Radio } from 'lucide-react';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Button } from '@/components/ui/button';
 import { update as updateAccountMode } from '@/routes/account/mode';
 import type { AppMode } from '@/types/app-mode';
 
@@ -14,6 +14,11 @@ const modeIcons: Record<AppMode, typeof Radio> = {
     creator: Mic2,
 };
 
+const oppositeMode: Record<AppMode, AppMode> = {
+    listener: 'creator',
+    creator: 'listener',
+};
+
 export function AppModeSwitcher() {
     const { appMode } = usePage().props;
 
@@ -21,39 +26,24 @@ export function AppModeSwitcher() {
         return null;
     }
 
+    const targetMode = oppositeMode[appMode.active];
+    const TargetIcon = modeIcons[targetMode];
+
     return (
-        <ToggleGroup
-            type="single"
+        <Button
+            type="button"
             variant="outline"
             size="sm"
-            value={appMode.active}
-            onValueChange={(value) => {
-                if (!value || value === appMode.active) {
-                    return;
-                }
-
-                router.put(updateAccountMode.url(), { mode: value });
+            onClick={() => {
+                router.put(updateAccountMode.url(), { mode: targetMode });
             }}
-            aria-label="Account mode"
+            aria-label={`Switch to ${modeLabels[targetMode]}`}
             data-test="app-mode-switcher"
         >
-            {appMode.available.map((mode) => {
-                const Icon = modeIcons[mode];
-
-                return (
-                    <ToggleGroupItem
-                        key={mode}
-                        value={mode}
-                        aria-label={modeLabels[mode]}
-                        className="gap-1.5 px-2.5"
-                    >
-                        <Icon className="size-3.5" />
-                        <span className="hidden sm:inline">
-                            {modeLabels[mode]}
-                        </span>
-                    </ToggleGroupItem>
-                );
-            })}
-        </ToggleGroup>
+            <TargetIcon className="size-3.5" />
+            <span className="hidden sm:inline">
+                Switch to {modeLabels[targetMode]}
+            </span>
+        </Button>
     );
 }

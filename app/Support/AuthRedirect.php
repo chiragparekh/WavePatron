@@ -26,10 +26,8 @@ class AuthRedirect
             if (! $this->creatorProfiles->hasProfile($user)) {
                 return route('creator.onboarding', absolute: false);
             }
-
-            return route('creator.dashboard', absolute: false);
         }
 
-        return route('listener.dashboard', absolute: false);
+        return route('dashboard', absolute: false);
     }
 }

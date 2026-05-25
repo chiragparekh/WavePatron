@@ -1,18 +1,18 @@
 <?php
 
-use App\Contracts\ChecksCreatorProfile;
 use App\Enums\AppMode;
+use App\Enums\Role;
+use App\Models\CreatorProfile;
 use App\Models\User;
-use App\Support\CreatorProfile\NullCreatorProfileChecker;
 use Inertia\Testing\AssertableInertia as Assert;
 
-test('listeners are redirected to the listener dashboard after login', function () {
+test('listeners are redirected to the dashboard after login', function () {
     $user = User::factory()->listener()->create();
 
     $this->post(route('login.store'), [
         'email' => $user->email,
         'password' => 'password',
-    ])->assertRedirect(route('listener.dashboard', absolute: false));
+    ])->assertRedirect(route('dashboard', absolute: false));
 
     $this->assertAuthenticated();
 });
@@ -26,21 +26,14 @@ test('creators are redirected to creator onboarding when they have no profile', 
     ])->assertRedirect(route('creator.onboarding', absolute: false));
 });
 
-test('creators with a profile are redirected to the creator dashboard after login', function () {
-    $this->app->bind(ChecksCreatorProfile::class, fn () => new class implements ChecksCreatorProfile
-    {
-        public function hasProfile(User $user): bool
-        {
-            return true;
-        }
-    });
-
+test('creators with a profile are redirected to the dashboard after login', function () {
     $user = User::factory()->creator()->create();
+    CreatorProfile::factory()->for($user)->create();
 
     $this->post(route('login.store'), [
         'email' => $user->email,
         'password' => 'password',
-    ])->assertRedirect(route('creator.dashboard', absolute: false));
+    ])->assertRedirect(route('dashboard', absolute: false));
 });
 
 test('admins are redirected to the filament panel after login', function () {
@@ -52,13 +45,20 @@ test('admins are redirected to the filament panel after login', function () {
     ])->assertRedirect('/admin');
 });
 
-test('dual role users default to the listener dashboard after login', function () {
-    $user = User::factory()->creatorAndListener()->create();
+test('plain factory users receive both listener and creator roles by default', function () {
+    $user = User::factory()->create();
+
+    expect($user->hasRole(Role::Listener->value))->toBeTrue()
+        ->and($user->hasRole(Role::Creator->value))->toBeTrue();
+});
+
+test('dual role users default to the dashboard after login', function () {
+    $user = User::factory()->create();
 
     $this->post(route('login.store'), [
         'email' => $user->email,
         'password' => 'password',
-    ])->assertRedirect(route('listener.dashboard', absolute: false));
+    ])->assertRedirect(route('dashboard', absolute: false));
 });
 
 test('dual role users can switch to creator mode', function () {
@@ -79,7 +79,7 @@ test('dual role users can switch back to listener mode', function () {
 
     $this->actingAs($user)
         ->put(route('account.mode.update'), ['mode' => AppMode::Listener->value])
-        ->assertRedirect(route('listener.dashboard', absolute: false));
+        ->assertRedirect(route('dashboard', absolute: false));
 
     expect($user->fresh()->active_mode)->toBe(AppMode::Listener);
 });
@@ -102,7 +102,7 @@ test('invalid account modes are rejected', function () {
         ->assertSessionHasErrors('mode');
 });
 
-test('dashboard redirects dual role users based on active mode', function () {
+test('dashboard redirects dual role users in creator mode without a profile to onboarding', function () {
     $user = User::factory()
         ->creatorAndListener()
         ->withActiveMode(AppMode::Creator)
@@ -113,11 +113,42 @@ test('dashboard redirects dual role users based on active mode', function () {
         ->assertRedirect(route('creator.onboarding'));
 });
 
-test('authenticated app pages share account mode state', function () {
+test('dashboard renders the creator dashboard for dual role users in creator mode with a profile', function () {
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
+
+    CreatorProfile::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page->component('creator/dashboard'));
+});
+
+test('legacy listener dashboard redirects to the canonical dashboard', function () {
     $user = User::factory()->creatorAndListener()->create();
 
     $this->actingAs($user)
         ->get(route('listener.dashboard'))
+        ->assertRedirect(route('dashboard'));
+});
+
+test('legacy creator dashboard redirects to the canonical dashboard', function () {
+    $user = User::factory()->creator()->create();
+    CreatorProfile::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->get(route('creator.dashboard'))
+        ->assertRedirect(route('dashboard'));
+});
+
+test('authenticated app pages share account mode state', function () {
+    $user = User::factory()->creatorAndListener()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
             ->where('appMode.active', AppMode::Listener->value)
@@ -130,7 +161,7 @@ test('listener only users do not see account mode switching', function () {
     $user = User::factory()->listener()->create();
 
     $this->actingAs($user)
-        ->get(route('listener.dashboard'))
+        ->get(route('dashboard'))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
             ->where('appMode.active', AppMode::Listener->value)
@@ -146,8 +177,4 @@ test('creator onboarding page is reachable for authenticated creators', function
         ->get(route('creator.onboarding'))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page->component('creator/onboarding'));
-});
-
-afterEach(function () {
-    $this->app->bind(ChecksCreatorProfile::class, NullCreatorProfileChecker::class);
 });
