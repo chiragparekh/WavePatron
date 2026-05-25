@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Account\UpdateAccountModeController;
 use App\Http\Controllers\AudioController;
 use App\Http\Controllers\Creator\DashboardController as CreatorDashboardController;
+use App\Http\Controllers\Creator\OnboardingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Listener\DashboardController as ListenerDashboardController;
 use App\Http\Controllers\Upload\HlsPlaylistController;
@@ -12,9 +14,12 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::put('account/mode', UpdateAccountModeController::class)->name('account.mode.update');
+
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('listener/dashboard', ListenerDashboardController::class)->name('listener.dashboard');
     Route::get('creator/dashboard', CreatorDashboardController::class)->name('creator.dashboard');
+    Route::get('creator/onboarding', OnboardingController::class)->name('creator.onboarding');
 
     Route::get('audios', [AudioController::class, 'index'])->name('audios.index');
     Route::inertia('uploads/create', 'uploads/create')->name('uploads.create');
