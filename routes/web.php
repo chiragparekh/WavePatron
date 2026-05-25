@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
 
+Route::stripeWebhooks('stripe/webhooks')->name('stripe.webhooks');
+
 Route::get('creators/{handle}', PublicCreatorProfileController::class)->name('creators.show');
 
 Route::get('creators/{profile}/subscribe/{tier}', CreatorSubscribeController::class)

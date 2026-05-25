@@ -1,7 +1,16 @@
 <?php
 
+use App\Jobs\StripeWebhooks\HandleAccountUpdatedJob;
+use App\Jobs\StripeWebhooks\HandleChargeRefundedJob;
+use App\Jobs\StripeWebhooks\HandleCheckoutSessionCompletedJob;
+use App\Jobs\StripeWebhooks\HandleDisputeCreatedJob;
+use App\Jobs\StripeWebhooks\HandleInvoicePaymentFailedJob;
+use App\Jobs\StripeWebhooks\HandleInvoicePaymentSucceededJob;
+use App\Jobs\StripeWebhooks\HandlePayoutPaidJob;
+use App\Jobs\StripeWebhooks\HandleSubscriptionEventJob;
+use App\Jobs\StripeWebhooks\HandleTransferCreatedJob;
+use App\Models\WebhookCall;
 use Spatie\StripeWebhooks\StripeWebhookProfile;
-use Spatie\WebhookClient\Models\WebhookCall;
 
 return [
     /*
@@ -25,8 +34,17 @@ return [
      * https://stripe.com/docs/api#event_types.
      */
     'jobs' => [
-        // 'source_chargeable' => \App\Jobs\StripeWebhooks\HandleChargeableSource::class,
-        // 'charge_failed' => \App\Jobs\StripeWebhooks\HandleFailedCharge::class,
+        'checkout_session_completed' => HandleCheckoutSessionCompletedJob::class,
+        'customer_subscription_created' => HandleSubscriptionEventJob::class,
+        'customer_subscription_updated' => HandleSubscriptionEventJob::class,
+        'customer_subscription_deleted' => HandleSubscriptionEventJob::class,
+        'invoice_payment_succeeded' => HandleInvoicePaymentSucceededJob::class,
+        'invoice_payment_failed' => HandleInvoicePaymentFailedJob::class,
+        'account_updated' => HandleAccountUpdatedJob::class,
+        'transfer_created' => HandleTransferCreatedJob::class,
+        'payout_paid' => HandlePayoutPaidJob::class,
+        'charge_refunded' => HandleChargeRefundedJob::class,
+        'charge_dispute_created' => HandleDisputeCreatedJob::class,
     ],
 
     /*
