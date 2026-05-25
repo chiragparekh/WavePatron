@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\AppMode;
 use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -90,5 +91,19 @@ class UserFactory extends Factory
         return $this->afterCreating(function (User $user): void {
             $user->syncRoles([Role::Listener->value]);
         });
+    }
+
+    public function creatorAndListener(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $user->syncRoles([Role::Creator->value, Role::Listener->value]);
+        });
+    }
+
+    public function withActiveMode(AppMode $mode): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'active_mode' => $mode,
+        ]);
     }
 }

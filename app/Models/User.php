@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\AppMode;
 use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
@@ -20,7 +21,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'active_mode'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, PasskeyUser
 {
@@ -35,6 +36,7 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     protected function casts(): array
     {
         return [
+            'active_mode' => AppMode::class,
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
@@ -58,5 +60,41 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     public function canImpersonate(): bool
     {
         return $this->hasRole(Role::Admin->value);
+    }
+
+    public function activeAppMode(): AppMode
+    {
+        if ($this->hasRole(Role::Creator->value) && ! $this->hasRole(Role::Listener->value)) {
+            return AppMode::Creator;
+        }
+
+        if ($this->hasRole(Role::Listener->value) && ! $this->hasRole(Role::Creator->value)) {
+            return AppMode::Listener;
+        }
+
+        return $this->active_mode ?? AppMode::Listener;
+    }
+
+    /**
+     * @return list<AppMode>
+     */
+    public function availableAppModes(): array
+    {
+        $modes = [];
+
+        if ($this->hasRole(Role::Listener->value)) {
+            $modes[] = AppMode::Listener;
+        }
+
+        if ($this->hasRole(Role::Creator->value)) {
+            $modes[] = AppMode::Creator;
+        }
+
+        return $modes;
+    }
+
+    public function canSwitchAppMode(): bool
+    {
+        return count($this->availableAppModes()) > 1;
     }
 }
