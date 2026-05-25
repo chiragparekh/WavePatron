@@ -2,17 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Queries\Upload\UploadStatsQuery;
+use App\Enums\Role;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request): Response
+    public function __invoke(Request $request): RedirectResponse
     {
-        return Inertia::render('dashboard', [
-            'stats' => (new UploadStatsQuery($request->user()))->get(),
-        ]);
+        $user = $request->user();
+
+        if ($user->hasRole(Role::Admin->value)) {
+            return redirect('/admin');
+        }
+
+        if ($user->hasRole(Role::Creator->value)) {
+            return redirect()->route('creator.dashboard');
+        }
+
+        return redirect()->route('listener.dashboard');
     }
 }
