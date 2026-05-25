@@ -6,6 +6,7 @@ use App\Http\Controllers\Creator\AudioController as CreatorAudioController;
 use App\Http\Controllers\Creator\DashboardController as CreatorDashboardController;
 use App\Http\Controllers\Creator\OnboardingController;
 use App\Http\Controllers\Creator\ProfileController as CreatorProfileController;
+use App\Http\Controllers\Creator\TierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Listener\DashboardController as ListenerDashboardController;
 use App\Http\Controllers\Upload\CreateUploadController;
@@ -31,6 +32,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('audios', [CreatorAudioController::class, 'index'])->name('audios.index');
         Route::get('audios/{upload}', [CreatorAudioController::class, 'edit'])->name('audios.edit');
         Route::put('audios/{upload}', [CreatorAudioController::class, 'update'])->name('audios.update');
+
+        Route::get('tiers', [TierController::class, 'index'])->name('tiers.index');
+        Route::get('tiers/create', [TierController::class, 'create'])->name('tiers.create');
+        Route::post('tiers', [TierController::class, 'store'])->name('tiers.store');
+        Route::get('tiers/{tier}', [TierController::class, 'edit'])->name('tiers.edit');
+        Route::put('tiers/{tier}', [TierController::class, 'update'])->name('tiers.update');
+        Route::post('tiers/{tier}/submit', [TierController::class, 'submit'])->name('tiers.submit');
+        Route::post('tiers/{tier}/activate', [TierController::class, 'activate'])->name('tiers.activate');
+        Route::post('tiers/{tier}/archive', [TierController::class, 'archive'])->name('tiers.archive');
     });
 
     Route::get('audios', [AudioController::class, 'index'])->name('audios.index');
