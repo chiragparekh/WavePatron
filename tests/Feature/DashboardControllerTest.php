@@ -9,7 +9,7 @@ test('guests cannot access the dashboard', function () {
         ->assertRedirect(route('login'));
 });
 
-test('authenticated users see upload stats on the dashboard', function () {
+test('authenticated users see upload stats on the listener dashboard', function () {
     $user = User::factory()->create();
 
     Upload::factory()->for($user)->ready()->create([
@@ -26,10 +26,10 @@ test('authenticated users see upload stats on the dashboard', function () {
     ]);
 
     $this->actingAs($user)
-        ->get(route('dashboard'))
+        ->get(route('listener.dashboard'))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('dashboard')
+            ->component('listener/dashboard')
             ->where('stats.total_ready', 2)
             ->where('stats.total_processing', 1)
             ->where('stats.total_failed', 1)
@@ -37,7 +37,7 @@ test('authenticated users see upload stats on the dashboard', function () {
         );
 });
 
-test('dashboard stats only include the authenticated users uploads', function () {
+test('listener dashboard stats only include the authenticated users uploads', function () {
     $user = User::factory()->create();
     $otherUser = User::factory()->create();
 
@@ -49,10 +49,10 @@ test('dashboard stats only include the authenticated users uploads', function ()
     ]);
 
     $this->actingAs($user)
-        ->get(route('dashboard'))
+        ->get(route('listener.dashboard'))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('dashboard')
+            ->component('listener/dashboard')
             ->where('stats.total_ready', 1)
             ->where('stats.total_storage_bytes', 1_024)
         );
