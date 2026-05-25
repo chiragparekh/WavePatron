@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AppMode;
 use App\Enums\UploadStatus;
 use App\Jobs\ProcessUploadHls;
 use App\Jobs\ProcessUploadMetadata;
@@ -19,8 +20,24 @@ test('guests cannot request a signed upload url', function () {
         ->assertUnauthorized();
 });
 
-test('authenticated users receive signed upload details', function () {
-    $user = User::factory()->create();
+test('listener only users cannot request a signed upload url', function () {
+    $user = User::factory()->listener()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('uploads.store'), validUploadPayload())
+        ->assertForbidden();
+});
+
+test('dual role users in listener mode cannot request a signed upload url', function () {
+    $user = User::factory()->creatorAndListener()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('uploads.store'), validUploadPayload())
+        ->assertForbidden();
+});
+
+test('creator mode users receive signed upload details', function () {
+    $user = User::factory()->creator()->create();
 
     $this->actingAs($user)
         ->postJson(route('uploads.store'), validUploadPayload())
@@ -29,8 +46,20 @@ test('authenticated users receive signed upload details', function () {
         ->assertJsonMissing(['id']);
 });
 
+test('dual role users in creator mode receive signed upload details', function () {
+    $user = User::factory()
+        ->creatorAndListener()
+        ->withActiveMode(AppMode::Creator)
+        ->create();
+
+    $this->actingAs($user)
+        ->postJson(route('uploads.store'), validUploadPayload())
+        ->assertSuccessful()
+        ->assertJsonStructure(['uuid', 'url', 'headers', 'path', 'expires_at']);
+});
+
 test('store creates an upload record with pending status', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->creator()->create();
 
     $response = $this->actingAs($user)
         ->postJson(route('uploads.store'), validUploadPayload([
@@ -62,7 +91,7 @@ test('store creates an upload record with pending status', function () {
 });
 
 test('object path is scoped under the authenticated user', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->creator()->create();
 
     $response = $this->actingAs($user)
         ->postJson(route('uploads.store'), validUploadPayload());
@@ -74,7 +103,7 @@ test('object path is scoped under the authenticated user', function () {
 });
 
 test('non-audio mime types are rejected', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->creator()->create();
 
     $this->actingAs($user)
         ->postJson(route('uploads.store'), validUploadPayload([
@@ -85,7 +114,7 @@ test('non-audio mime types are rejected', function () {
 });
 
 test('files over 500 mb are rejected', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->creator()->create();
 
     $this->actingAs($user)
         ->postJson(route('uploads.store'), validUploadPayload([

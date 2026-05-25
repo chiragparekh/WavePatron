@@ -15,6 +15,10 @@ export type UploadListItem = {
     metadata: UploadListMetadata | null;
     hls_playlist_url: string;
     waveform_url: string;
+    creator?: {
+        display_name: string;
+        handle: string;
+    } | null;
 };
 
 export type UploadProcessingItem = {
@@ -36,6 +40,29 @@ export type WaveformData = {
     version: number;
     length: number;
     data: [number, number][];
+};
+
+export type CreatorAudioListItem = {
+    uuid: string;
+    title: string | null;
+    original_name: string;
+    display_title: string;
+    status: string;
+    publish_status: 'draft' | 'published';
+    access_level: 'free' | 'premium';
+    uploaded_at: string | null;
+    can_publish: boolean;
+};
+
+export type CreatorAudioDetail = CreatorAudioListItem & {
+    description: string | null;
+    metadata: {
+        title: string | null;
+        artist: string | null;
+        duration: string | null;
+    } | null;
+    hls_playlist_url: string | null;
+    waveform_url: string | null;
 };
 
 export type Paginated<T> = {

@@ -2,6 +2,8 @@
 
 namespace App\Actions\Upload;
 
+use App\Enums\AudioAccessLevel;
+use App\Enums\AudioPublishStatus;
 use App\Enums\UploadStatus;
 use App\Models\Upload;
 use App\Models\User;
@@ -34,6 +36,8 @@ class InitiateUpload
             'disk' => 's3',
             'path' => $path,
             'status' => UploadStatus::PendingUpload,
+            'publish_status' => AudioPublishStatus::Draft,
+            'access_level' => AudioAccessLevel::Free,
             'step_statuses' => Upload::defaultStepStatuses(),
         ]);
 

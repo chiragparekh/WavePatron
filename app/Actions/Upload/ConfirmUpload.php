@@ -9,6 +9,8 @@ use Illuminate\Validation\ValidationException;
 
 class ConfirmUpload
 {
+    public function __construct(private LogUploadActivity $logUploadActivity) {}
+
     public function execute(Upload $upload): Upload
     {
         if ($upload->status !== UploadStatus::PendingUpload) {
@@ -28,6 +30,10 @@ class ConfirmUpload
             'uploaded_at' => now(),
         ]);
 
-        return $upload->fresh();
+        $upload = $upload->fresh();
+
+        $this->logUploadActivity->execute($upload, 'uploaded', $upload->user);
+
+        return $upload;
     }
 }

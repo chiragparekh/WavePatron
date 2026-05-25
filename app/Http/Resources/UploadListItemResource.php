@@ -31,6 +31,13 @@ class UploadListItemResource extends JsonResource
             ]),
             'hls_playlist_url' => route('uploads.hls.playlist', $this),
             'waveform_url' => route('uploads.waveform', $this),
+            'creator' => $this->when(
+                $this->relationLoaded('user') && $this->user?->relationLoaded('creatorProfile'),
+                fn (): ?array => $this->user?->creatorProfile === null ? null : [
+                    'display_name' => $this->user->creatorProfile->display_name,
+                    'handle' => $this->user->creatorProfile->handle,
+                ],
+            ),
         ];
     }
 }

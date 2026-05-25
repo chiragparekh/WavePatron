@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { LayoutGrid, Music2, Upload } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
@@ -15,7 +15,7 @@ import {
 import { dashboard } from '@/routes';
 import { index as audios } from '@/routes/audios';
 import { create as uploadsCreate } from '@/routes/uploads';
-import type { NavItem } from '@/types';
+import type { AppModeState, NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
     {
@@ -36,6 +36,11 @@ const mainNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const appMode = usePage<{ appMode: AppModeState | null }>().props.appMode;
+    const navItems = mainNavItems.filter(
+        (item) => item.title !== 'Upload' || appMode?.active === 'creator',
+    );
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -51,7 +56,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={navItems} />
             </SidebarContent>
 
             <SidebarFooter>

@@ -14,6 +14,7 @@ use Illuminate\Routing\Attributes\Controllers\Authorize;
 
 class UploadController extends Controller
 {
+    #[Authorize('create', Upload::class)]
     public function store(
         StoreUploadRequest $request,
         InitiateUpload $initiateUpload,

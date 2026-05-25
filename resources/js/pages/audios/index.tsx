@@ -1,4 +1,4 @@
-import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link, router, usePage, usePoll } from '@inertiajs/react';
 import {
     CheckCircle2,
     Circle,
@@ -26,6 +26,7 @@ import {
 import { cn } from '@/lib/utils';
 import { index as audios } from '@/routes/audios';
 import { create as uploadsCreate } from '@/routes/uploads';
+import type { AppModeState } from '@/types';
 import type {
     Paginated,
     UploadListItem,
@@ -118,6 +119,8 @@ export default function AudiosIndex({
     uploads,
     processingUploads,
 }: AudiosIndexProps) {
+    const appMode = usePage<{ appMode: AppModeState | null }>().props.appMode;
+    const isCreatorMode = appMode?.active === 'creator';
     const [activeTab, setActiveTab] = useState<AudiosTab>('ready');
     const [isLoadingProcessing, setIsLoadingProcessing] = useState(false);
     const previousProcessingCountRef = useRef<number | null>(null);
@@ -141,7 +144,7 @@ export default function AudiosIndex({
     );
 
     useEffect(() => {
-        if (activeTab !== 'processing') {
+        if (!isCreatorMode || activeTab !== 'processing') {
             stopPolling();
 
             return;
@@ -152,12 +155,13 @@ export default function AudiosIndex({
         return () => {
             stopPolling();
         };
-    }, [activeTab, startPolling, stopPolling]);
+    }, [activeTab, isCreatorMode, startPolling, stopPolling]);
 
     useEffect(() => {
         const count = processingUploads?.length ?? 0;
 
         if (
+            isCreatorMode &&
             previousProcessingCountRef.current !== null &&
             previousProcessingCountRef.current > 0 &&
             count === 0 &&
@@ -167,7 +171,7 @@ export default function AudiosIndex({
         }
 
         previousProcessingCountRef.current = count;
-    }, [processingUploads, activeTab]);
+    }, [processingUploads, activeTab, isCreatorMode]);
 
     function handleTabChange(value: string) {
         if (value !== 'ready' && value !== 'processing') {
@@ -195,63 +199,80 @@ export default function AudiosIndex({
             <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex flex-1 flex-col gap-4 overflow-x-auto overflow-y-auto p-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <ToggleGroup
-                            type="single"
-                            value={activeTab}
-                            onValueChange={handleTabChange}
-                            variant="outline"
-                            className="w-fit"
-                        >
-                            <ToggleGroupItem value="ready" aria-label="Ready audios">
-                                Ready
-                            </ToggleGroupItem>
-                            <ToggleGroupItem
-                                value="processing"
-                                aria-label="Processing audios"
+                        {isCreatorMode ? (
+                            <ToggleGroup
+                                type="single"
+                                value={activeTab}
+                                onValueChange={handleTabChange}
+                                variant="outline"
+                                className="w-fit"
                             >
-                                Processing
-                            </ToggleGroupItem>
-                        </ToggleGroup>
+                                <ToggleGroupItem value="ready" aria-label="Ready audios">
+                                    Ready
+                                </ToggleGroupItem>
+                                <ToggleGroupItem
+                                    value="processing"
+                                    aria-label="Processing audios"
+                                >
+                                    Processing
+                                </ToggleGroupItem>
+                            </ToggleGroup>
+                        ) : (
+                            <div />
+                        )}
 
-                        <Button asChild size="sm" className="w-fit">
-                            <Link href={uploadsCreate()} prefetch>
-                                <Upload />
-                                Upload
-                            </Link>
-                        </Button>
+                        {isCreatorMode && (
+                            <Button asChild size="sm" className="w-fit">
+                                <Link href={uploadsCreate()} prefetch>
+                                    <Upload />
+                                    Upload
+                                </Link>
+                            </Button>
+                        )}
                     </div>
 
-                    {activeTab === 'ready' ? (
+                    {activeTab === 'ready' || !isCreatorMode ? (
                         uploads.data.length === 0 ? (
                             <Card>
                                 <CardHeader className="items-center text-center">
                                     <div className="bg-muted mb-2 flex size-12 items-center justify-center rounded-full">
                                         <Music2 className="text-muted-foreground size-6" />
                                     </div>
-                                    <CardTitle>No ready audios yet</CardTitle>
+                                    <CardTitle>
+                                        {isCreatorMode
+                                            ? 'No ready audios yet'
+                                            : 'No audios available'}
+                                    </CardTitle>
                                     <CardDescription>
-                                        Upload an audio file and wait for
-                                        processing to finish.
+                                        {isCreatorMode
+                                            ? 'Upload an audio file and wait for processing to finish.'
+                                            : 'Published audio from creators will appear here.'}
                                     </CardDescription>
                                 </CardHeader>
-                                <CardContent className="flex justify-center">
-                                    <Button asChild>
-                                        <Link href={uploadsCreate()} prefetch>
-                                            <Upload />
-                                            Upload audio
-                                        </Link>
-                                    </Button>
-                                </CardContent>
+                                {isCreatorMode && (
+                                    <CardContent className="flex justify-center">
+                                        <Button asChild>
+                                            <Link href={uploadsCreate()} prefetch>
+                                                <Upload />
+                                                Upload audio
+                                            </Link>
+                                        </Button>
+                                    </CardContent>
+                                )}
                             </Card>
                         ) : (
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Your audios</CardTitle>
+                                    <CardTitle>
+                                        {isCreatorMode
+                                            ? 'Your audios'
+                                            : 'Audio library'}
+                                    </CardTitle>
                                     <CardDescription>
                                         {uploads.meta.total} ready{' '}
                                         {uploads.meta.total === 1
-                                            ? 'upload'
-                                            : 'uploads'}
+                                            ? 'audio'
+                                            : 'audios'}
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-4">
@@ -285,6 +306,11 @@ export default function AudiosIndex({
                                                         <th className="px-4 py-3 text-left font-medium">
                                                             Artist
                                                         </th>
+                                                        {!isCreatorMode && (
+                                                            <th className="px-4 py-3 text-left font-medium">
+                                                                Creator
+                                                            </th>
+                                                        )}
                                                         <th className="px-4 py-3 text-left font-medium">
                                                             Duration
                                                         </th>
@@ -327,6 +353,14 @@ export default function AudiosIndex({
                                                                             ?.artist ??
                                                                             '—'}
                                                                     </td>
+                                                                    {!isCreatorMode && (
+                                                                        <td className="text-muted-foreground px-4 py-3">
+                                                                            {upload
+                                                                                .creator
+                                                                                ?.display_name ??
+                                                                                '—'}
+                                                                        </td>
+                                                                    )}
                                                                     <td className="text-muted-foreground px-4 py-3">
                                                                         {upload
                                                                             .metadata
@@ -349,7 +383,7 @@ export default function AudiosIndex({
                                 </CardContent>
                             </Card>
                         )
-                    ) : isLoadingProcessing && processingUploads === undefined ? (
+                    ) : isCreatorMode && isLoadingProcessing && processingUploads === undefined ? (
                         <Card>
                             <CardContent className="flex items-center justify-center gap-3 py-12">
                                 <Spinner className="size-5" />
@@ -358,7 +392,7 @@ export default function AudiosIndex({
                                 </span>
                             </CardContent>
                         </Card>
-                    ) : (processingUploads?.length ?? 0) === 0 ? (
+                    ) : isCreatorMode && (processingUploads?.length ?? 0) === 0 ? (
                         <Card>
                             <CardHeader className="items-center text-center">
                                 <CardTitle>No uploads processing</CardTitle>
@@ -368,7 +402,7 @@ export default function AudiosIndex({
                                 </CardDescription>
                             </CardHeader>
                         </Card>
-                    ) : (
+                    ) : isCreatorMode ? (
                         <Card>
                             <CardHeader>
                                 <CardTitle>Processing uploads</CardTitle>
@@ -414,10 +448,10 @@ export default function AudiosIndex({
                                 ))}
                             </CardContent>
                         </Card>
-                    )}
+                    ) : null}
                 </div>
 
-                {activeTab === 'ready' && selectedUpload && (
+                {(activeTab === 'ready' || !isCreatorMode) && selectedUpload && (
                     <AudioPlayer
                         key={selectedUpload.uuid}
                         upload={selectedUpload}

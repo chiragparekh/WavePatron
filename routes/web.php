@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\Account\UpdateAccountModeController;
 use App\Http\Controllers\AudioController;
+use App\Http\Controllers\Creator\AudioController as CreatorAudioController;
 use App\Http\Controllers\Creator\DashboardController as CreatorDashboardController;
 use App\Http\Controllers\Creator\OnboardingController;
 use App\Http\Controllers\Creator\ProfileController as CreatorProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Listener\DashboardController as ListenerDashboardController;
+use App\Http\Controllers\Upload\CreateUploadController;
 use App\Http\Controllers\Upload\HlsPlaylistController;
 use App\Http\Controllers\Upload\HlsSegmentController;
 use App\Http\Controllers\Upload\WaveformController;
@@ -25,8 +27,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('creator/profile', [CreatorProfileController::class, 'store'])->name('creator.profile.store');
     Route::put('creator/profile', [CreatorProfileController::class, 'update'])->name('creator.profile.update');
 
+    Route::middleware('role:creator')->prefix('creator')->name('creator.')->group(function () {
+        Route::get('audios', [CreatorAudioController::class, 'index'])->name('audios.index');
+        Route::get('audios/{upload}', [CreatorAudioController::class, 'edit'])->name('audios.edit');
+        Route::put('audios/{upload}', [CreatorAudioController::class, 'update'])->name('audios.update');
+    });
+
     Route::get('audios', [AudioController::class, 'index'])->name('audios.index');
-    Route::inertia('uploads/create', 'uploads/create')->name('uploads.create');
+    Route::get('uploads/create', CreateUploadController::class)->name('uploads.create');
 
     Route::get('uploads/{upload}/hls/playlist.m3u8', [HlsPlaylistController::class, 'show'])
         ->name('uploads.hls.playlist');
